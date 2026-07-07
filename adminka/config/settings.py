@@ -19,8 +19,12 @@ SECRET_KEY = os.getenv(
     "DJANGO_SECRET_KEY",
     "django-insecure-eslatbot-adminka-mahalliy-kalit-o1x9v2",
 )
-DEBUG = True
-ALLOWED_HOSTS = ["*"]
+# Serverda .env orqali DJANGO_DEBUG=0 qilinadi
+DEBUG = os.getenv("DJANGO_DEBUG", "1") == "1"
+ALLOWED_HOSTS = os.getenv("DJANGO_ALLOWED_HOSTS", "*").split(",")
+CSRF_TRUSTED_ORIGINS = [
+    o for o in os.getenv("DJANGO_CSRF_TRUSTED_ORIGINS", "").split(",") if o
+]
 
 INSTALLED_APPS = [
     "django.contrib.admin",
@@ -75,4 +79,5 @@ USE_I18N = True
 USE_TZ = False  # bot vaqtlarni mahalliy vaqtda saqlaydi
 
 STATIC_URL = "static/"
+STATIC_ROOT = BASE_DIR / "staticfiles"
 DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"

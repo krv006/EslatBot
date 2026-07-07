@@ -1,0 +1,43 @@
+services:
+  # Telegram bot
+  bot:
+    build: .
+    container_name: eslatbot_bot
+    command: python main.py
+    env_file: .env
+    environment:
+      DB_NAME: data/eslatbot.db
+    volumes:
+      - bot_data:/app/data
+    restart: unless-stopped
+
+  # Django admin panel (gunicorn)
+  adminka:
+    build: .
+    container_name: eslatbot_adminka
+    command: sh -c "python adminka/manage.py migrate --noinput && python adminka/manage.py collectstatic --noinput && (python adminka/manage.py createsuperuser --noinput || true) && gunicorn --chdir adminka config.wsgi:application --bind 0.0.0.0:8000 --workers 2"
+    env_file: .env
+    environment:
+      DB_NAME: data/eslatbot.db
+      DJANGO_DEBUG: "0"
+    volumes:
+      - bot_data:/app/data
+      - static_files:/app/adminka/staticfiles
+    restart: unless-stopped
+
+  # Nginx — tashqi dunyoga chiqish nuqtasi (80-port)
+  nginx:
+    image: nginx:1.27-alpine
+    container_name: eslatbot_nginx
+    ports:
+      - "80:80"
+    volumes:
+      - ./nginx/default.conf:/etc/nginx/conf.d/default.conf:ro
+      - static_files:/static:ro
+    depends_on:
+      - adminka
+    restart: unless-stopped
+
+volumes:
+  bot_data:      # SQLite baza — konteyner o'chsa ham saqlanadi
+  static_files:  # Django admin static fayllari
