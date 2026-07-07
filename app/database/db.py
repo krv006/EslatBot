@@ -10,7 +10,13 @@ CREATE TABLE IF NOT EXISTS users (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     tg_id INTEGER UNIQUE NOT NULL,
     name TEXT,
-    created_at TEXT
+    last_name TEXT,
+    username TEXT,
+    phone TEXT,
+    language_code TEXT,
+    is_premium INTEGER DEFAULT 0,
+    created_at TEXT,
+    last_seen TEXT
 );
 
 CREATE TABLE IF NOT EXISTS reminders (
@@ -29,26 +35,86 @@ CREATE TABLE IF NOT EXISTS reminders (
 """
 
 
+# Eski bazalarga qo'shiladigan yangi ustunlar (migratsiya)
+USER_COLUMNS = {
+    "last_name": "TEXT",
+    "username": "TEXT",
+    "phone": "TEXT",
+    "language_code": "TEXT",
+    "is_premium": "INTEGER DEFAULT 0",
+    "last_seen": "TEXT",
+    "registered": "INTEGER DEFAULT 0",
+}
+
+
 async def init_db() -> None:
     async with aiosqlite.connect(DB_PATH) as conn:
         # WAL — bot va admin panel bazani bir vaqtda ishlatishi uchun
         await conn.execute("PRAGMA journal_mode=WAL")
         await conn.executescript(CREATE_SQL)
+        # eski bazada yetishmayotgan ustunlarni qo'shamiz
+        cur = await conn.execute("PRAGMA table_info(users)")
+        existing = {row[1] for row in await cur.fetchall()}
+        for col, col_type in USER_COLUMNS.items():
+            if col not in existing:
+                await conn.execute(f"ALTER TABLE users ADD COLUMN {col} {col_type}")
         await conn.commit()
 
 
-async def get_or_create_user(tg_id: int, name: str) -> int:
+async def upsert_user(tg_user) -> int:
+    """Telegram'dan kelgan barcha ma'lumotni saqlaydi/yangilaydi.
+
+    tg_user — aiogram'ning message.from_user obyekti.
+    """
+    now = datetime.now().isoformat()
     async with aiosqlite.connect(DB_PATH) as conn:
-        cur = await conn.execute("SELECT id FROM users WHERE tg_id = ?", (tg_id,))
+        cur = await conn.execute("SELECT id FROM users WHERE tg_id = ?", (tg_user.id,))
         row = await cur.fetchone()
         if row:
+            await conn.execute(
+                """UPDATE users SET last_name = ?, username = ?, language_code = ?,
+                   is_premium = ?, last_seen = ? WHERE tg_id = ?""",
+                (tg_user.last_name, tg_user.username, tg_user.language_code,
+                 1 if tg_user.is_premium else 0, now, tg_user.id),
+            )
+            await conn.commit()
             return row[0]
         cur = await conn.execute(
-            "INSERT INTO users (tg_id, name, created_at) VALUES (?, ?, ?)",
-            (tg_id, name, datetime.now().isoformat()),
+            """INSERT INTO users
+               (tg_id, name, last_name, username, language_code, is_premium,
+                created_at, last_seen)
+               VALUES (?, ?, ?, ?, ?, ?, ?, ?)""",
+            (tg_user.id, tg_user.first_name, tg_user.last_name, tg_user.username,
+             tg_user.language_code, 1 if tg_user.is_premium else 0, now, now),
         )
         await conn.commit()
         return cur.lastrowid
+
+
+async def get_user(tg_id: int) -> dict | None:
+    async with aiosqlite.connect(DB_PATH) as conn:
+        conn.row_factory = aiosqlite.Row
+        cur = await conn.execute("SELECT * FROM users WHERE tg_id = ?", (tg_id,))
+        row = await cur.fetchone()
+        return dict(row) if row else None
+
+
+async def set_name(tg_id: int, name: str) -> None:
+    async with aiosqlite.connect(DB_PATH) as conn:
+        await conn.execute("UPDATE users SET name = ? WHERE tg_id = ?", (name, tg_id))
+        await conn.commit()
+
+
+async def set_phone(tg_id: int, phone: str) -> None:
+    async with aiosqlite.connect(DB_PATH) as conn:
+        await conn.execute("UPDATE users SET phone = ? WHERE tg_id = ?", (phone, tg_id))
+        await conn.commit()
+
+
+async def set_registered(tg_id: int) -> None:
+    async with aiosqlite.connect(DB_PATH) as conn:
+        await conn.execute("UPDATE users SET registered = 1 WHERE tg_id = ?", (tg_id,))
+        await conn.commit()
 
 
 async def add_reminder(

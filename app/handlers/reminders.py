@@ -44,9 +44,9 @@ async def finalize(message: Message, state: FSMContext):
     data = await state.get_data()
     await state.clear()
 
-    user_id = await db.get_or_create_user(
-        message.from_user.id, message.from_user.first_name or ""
-    )
+    # user_db_id oqim boshida saqlangan — callback orqali kelganda
+    # message.from_user bot bo'lib qolishi mumkin, shuning uchun undan olmaymiz
+    user_id = data["user_db_id"]
     start_date = None
     if data["freq"] == "every2":
         start_date = first_run_date(data["hour"], data["minute"]).isoformat()
@@ -150,9 +150,11 @@ async def free_text(message: Message, state: FSMContext):
 
 async def _handle_parsed(message: Message, state: FSMContext, raw: str):
     """Matnni parser orqali o'tkazib, yetishmagan qismlarini so'raydi."""
+    user_db_id = await db.upsert_user(message.from_user)
     parsed = parse_text(raw)
     text = parsed["text"] or raw.strip()
     await state.update_data(
+        user_db_id=user_db_id,
         text=text,
         freq=parsed["freq"],
         weekday=parsed["weekday"],

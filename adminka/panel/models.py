@@ -18,7 +18,14 @@ WEEKDAY_CHOICES = [
 class BotUser(models.Model):
     tg_id = models.BigIntegerField("Telegram ID", unique=True)
     name = models.TextField("Ismi", blank=True, null=True)
-    created_at = models.DateTimeField("Ro'yxatdan o'tgan", blank=True, null=True)
+    last_name = models.TextField("Familiya", blank=True, null=True)
+    username = models.TextField("TG username", blank=True, null=True)
+    phone = models.TextField("Telefon", blank=True, null=True)
+    language_code = models.TextField("Til", blank=True, null=True)
+    is_premium = models.BooleanField("Premium", blank=True, null=True)
+    registered = models.BooleanField("Ro'yxatdan o'tgan", default=False)
+    created_at = models.DateTimeField("Kelgan vaqti", blank=True, null=True)
+    last_seen = models.DateTimeField("Oxirgi faollik", blank=True, null=True)
 
     class Meta:
         managed = False

@@ -10,10 +10,32 @@ from app.utils.parser import WEEKDAY_NAMES
 
 BTN_NEW = "➕ Yangi eslatma"
 BTN_LIST = "📋 Eslatmalarim"
+BTN_SKIP = "⏭ O'tkazib yuborish"
+BTN_SHARE_PHONE = "📱 Raqamni ulashish"
 
 main_menu = ReplyKeyboardMarkup(
     keyboard=[[KeyboardButton(text=BTN_NEW), KeyboardButton(text=BTN_LIST)]],
     resize_keyboard=True,
+)
+
+
+def name_confirm_kb(tg_name: str) -> ReplyKeyboardMarkup:
+    """Ro'yxatdan o'tishda: TG'dagi ismni tasdiqlash yoki yangisini yozish."""
+    return ReplyKeyboardMarkup(
+        keyboard=[[KeyboardButton(text=f"✅ {tg_name}")]],
+        resize_keyboard=True,
+        one_time_keyboard=True,
+        input_field_placeholder="Ismingizni yozing yoki tugmani bosing",
+    )
+
+
+phone_kb = ReplyKeyboardMarkup(
+    keyboard=[
+        [KeyboardButton(text=BTN_SHARE_PHONE, request_contact=True)],
+        [KeyboardButton(text=BTN_SKIP)],
+    ],
+    resize_keyboard=True,
+    one_time_keyboard=True,
 )
 
 freq_kb = InlineKeyboardMarkup(
