@@ -24,6 +24,9 @@ class BotUser(models.Model):
     language_code = models.TextField("Til", blank=True, null=True)
     is_premium = models.BooleanField("Premium", blank=True, null=True)
     registered = models.BooleanField("Ro'yxatdan o'tgan", default=False)
+    digest_enabled = models.BooleanField("Digest yoqilgan", default=True)
+    digest_hour = models.IntegerField("Digest soati", default=7)
+    digest_minute = models.IntegerField("Digest daqiqasi", default=0)
     created_at = models.DateTimeField("Kelgan vaqti", blank=True, null=True)
     last_seen = models.DateTimeField("Oxirgi faollik", blank=True, null=True)
 

@@ -16,7 +16,11 @@ CREATE TABLE IF NOT EXISTS users (
     language_code TEXT,
     is_premium INTEGER DEFAULT 0,
     created_at TEXT,
-    last_seen TEXT
+    last_seen TEXT,
+    registered INTEGER DEFAULT 0,
+    digest_enabled INTEGER DEFAULT 1,
+    digest_hour INTEGER DEFAULT 7,
+    digest_minute INTEGER DEFAULT 0
 );
 
 CREATE TABLE IF NOT EXISTS reminders (
@@ -44,6 +48,9 @@ USER_COLUMNS = {
     "is_premium": "INTEGER DEFAULT 0",
     "last_seen": "TEXT",
     "registered": "INTEGER DEFAULT 0",
+    "digest_enabled": "INTEGER DEFAULT 1",
+    "digest_hour": "INTEGER DEFAULT 7",
+    "digest_minute": "INTEGER DEFAULT 0",
 }
 
 
@@ -114,6 +121,52 @@ async def set_phone(tg_id: int, phone: str) -> None:
 async def set_registered(tg_id: int) -> None:
     async with aiosqlite.connect(DB_PATH) as conn:
         await conn.execute("UPDATE users SET registered = 1 WHERE tg_id = ?", (tg_id,))
+        await conn.commit()
+
+
+# --- Digest (ertalabki kun rejasi) ---
+
+async def get_user_by_id(user_db_id: int) -> dict | None:
+    async with aiosqlite.connect(DB_PATH) as conn:
+        conn.row_factory = aiosqlite.Row
+        cur = await conn.execute("SELECT * FROM users WHERE id = ?", (user_db_id,))
+        row = await cur.fetchone()
+        return dict(row) if row else None
+
+
+async def get_users_for_digest() -> list[dict]:
+    """Digest yoqilgan barcha foydalanuvchilar (bot startida jadvalga yuklash uchun)."""
+    async with aiosqlite.connect(DB_PATH) as conn:
+        conn.row_factory = aiosqlite.Row
+        cur = await conn.execute("SELECT * FROM users WHERE digest_enabled = 1")
+        return [dict(r) for r in await cur.fetchall()]
+
+
+async def get_active_reminders_for_user(user_db_id: int) -> list[dict]:
+    async with aiosqlite.connect(DB_PATH) as conn:
+        conn.row_factory = aiosqlite.Row
+        cur = await conn.execute(
+            "SELECT * FROM reminders WHERE user_id = ? AND is_active = 1",
+            (user_db_id,),
+        )
+        return [dict(r) for r in await cur.fetchall()]
+
+
+async def set_digest_enabled(tg_id: int, enabled: bool) -> None:
+    async with aiosqlite.connect(DB_PATH) as conn:
+        await conn.execute(
+            "UPDATE users SET digest_enabled = ? WHERE tg_id = ?",
+            (1 if enabled else 0, tg_id),
+        )
+        await conn.commit()
+
+
+async def set_digest_time(tg_id: int, hour: int, minute: int) -> None:
+    async with aiosqlite.connect(DB_PATH) as conn:
+        await conn.execute(
+            "UPDATE users SET digest_hour = ?, digest_minute = ? WHERE tg_id = ?",
+            (hour, minute, tg_id),
+        )
         await conn.commit()
 
 

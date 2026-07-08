@@ -21,10 +21,10 @@ class ReminderInline(admin.TabularInline):
 class BotUserAdmin(admin.ModelAdmin):
     list_display = (
         "id", "name", "last_name", "tg_username", "phone_display", "tg_id",
-        "language_code", "is_premium", "registered", "reminders_count",
-        "created_at", "last_seen",
+        "language_code", "is_premium", "registered", "digest_display",
+        "reminders_count", "created_at", "last_seen",
     )
-    list_filter = ("registered", "is_premium", "language_code")
+    list_filter = ("registered", "is_premium", "digest_enabled", "language_code")
     search_fields = ("name", "last_name", "username", "phone", "tg_id")
     ordering = ("-id",)
     inlines = [ReminderInline]
@@ -48,6 +48,12 @@ class BotUserAdmin(admin.ModelAdmin):
             phone = obj.phone if obj.phone.startswith("+") else f"+{obj.phone}"
             return format_html('<a href="tel:{}">{}</a>', phone, phone)
         return "—"
+
+    @admin.display(description="🌅 Digest")
+    def digest_display(self, obj):
+        if obj.digest_enabled:
+            return f"✅ {obj.digest_hour or 7:02d}:{obj.digest_minute or 0:02d}"
+        return "🔕"
 
     @admin.display(description="Eslatmalari", ordering="_rc")
     def reminders_count(self, obj):

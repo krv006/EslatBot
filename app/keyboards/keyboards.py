@@ -10,13 +10,31 @@ from app.utils.parser import WEEKDAY_NAMES
 
 BTN_NEW = "➕ Yangi eslatma"
 BTN_LIST = "📋 Eslatmalarim"
+BTN_SETTINGS = "⚙️ Sozlamalar"
 BTN_SKIP = "⏭ O'tkazib yuborish"
 BTN_SHARE_PHONE = "📱 Raqamni ulashish"
 
 main_menu = ReplyKeyboardMarkup(
-    keyboard=[[KeyboardButton(text=BTN_NEW), KeyboardButton(text=BTN_LIST)]],
+    keyboard=[
+        [KeyboardButton(text=BTN_NEW), KeyboardButton(text=BTN_LIST)],
+        [KeyboardButton(text=BTN_SETTINGS)],
+    ],
     resize_keyboard=True,
 )
+
+
+def digest_settings_kb(enabled: bool, hour: int, minute: int) -> InlineKeyboardMarkup:
+    """Ertalabki reja (digest) sozlamalari."""
+    toggle_text = "🔕 O'chirish" if enabled else "🔔 Yoqish"
+    return InlineKeyboardMarkup(
+        inline_keyboard=[
+            [InlineKeyboardButton(text=toggle_text, callback_data="dg_toggle")],
+            [InlineKeyboardButton(
+                text=f"🕖 Vaqtini o'zgartirish ({hour:02d}:{minute:02d})",
+                callback_data="dg_time",
+            )],
+        ]
+    )
 
 
 def name_confirm_kb(tg_name: str) -> ReplyKeyboardMarkup:

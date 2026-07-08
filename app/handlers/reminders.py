@@ -6,7 +6,7 @@ from aiogram.types import CallbackQuery, Message
 
 from app.database import db
 from app.keyboards.keyboards import BTN_NEW, freq_kb, main_menu, weekday_kb
-from app.scheduler.scheduler import first_run_date, schedule_reminder
+from app.scheduler.scheduler import first_run_date, schedule_digest, schedule_reminder
 from app.utils.parser import describe, parse_text, parse_time
 
 router = Router()
@@ -63,6 +63,11 @@ async def finalize(message: Message, state: FSMContext):
     )
     rem = await db.get_reminder(reminder_id)
     schedule_reminder(message.bot, rem)
+
+    # User /start siz (erkin matn orqali) kelgan bo'lsa ham digestini yoqamiz
+    user = await db.get_user_by_id(user_id)
+    if user:
+        schedule_digest(message.bot, user)
 
     when = describe(data["freq"], data.get("weekday"), data.get("monthday"),
                     data["hour"], data["minute"])

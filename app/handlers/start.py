@@ -12,6 +12,7 @@ from app.keyboards.keyboards import (
     name_confirm_kb,
     phone_kb,
 )
+from app.scheduler.scheduler import schedule_digest
 
 router = Router()
 
@@ -106,9 +107,17 @@ async def reg_phone_other(message: Message):
 async def _finish_registration(message: Message, state: FSMContext, phone_saved: bool):
     await db.set_registered(message.from_user.id)
     await state.clear()
+
+    # Ertalabki kun rejasini jadvalga qo'shamiz
+    user = await db.get_user(message.from_user.id)
+    if user:
+        schedule_digest(message.bot, user)
+
     extra = "📱 Raqamingiz saqlandi!\n\n" if phone_saved else ""
     await message.answer(
-        f"✅ <b>Ro'yxatdan o'tdingiz!</b> {extra}\n" + HELP_TEXT,
+        f"✅ <b>Ro'yxatdan o'tdingiz!</b> {extra}\n" + HELP_TEXT + "\n\n"
+        "🌅 <b>Bonus:</b> har kuni ertalab <b>07:00</b> da bugungi rejalaringizni "
+        "bitta xabarda yuboraman. Vaqtini <b>⚙️ Sozlamalar</b>dan o'zgartirsangiz bo'ladi.",
         reply_markup=main_menu,
     )
 
