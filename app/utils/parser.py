@@ -37,7 +37,8 @@ MONTH_NAMES = [
 
 # Matndan olib tashlanadigan "shovqin" so'zlar
 FILLER_RE = re.compile(
-    r"\b(meni|menga|iltimos|eslatib\s+tur(gin)?|eslat(gin)?|eslatma)\b",
+    r"\b(meni|menga|iltimos|"
+    r"eslatib\s+(?:tur|yubor|qo'y)(?:gin)?|eslatib|eslat(?:gin)?|eslatma)\b",
     re.IGNORECASE,
 )
 
@@ -76,6 +77,27 @@ def _word_expr_to_hour(expr: str) -> int | None:
     return total if 0 < total <= 23 else None
 
 
+# Minut so'zlari: "nol nol" -> 0, "qirq besh" -> 45, "o'ttiz" -> 30
+_MIN_TENS = {"nol": 0, "o'n": 10, "yigirma": 20, "o'ttiz": 30,
+             "qirq": 40, "ellik": 50}
+_MIN_ALT = r"(?:ellik|qirq|o'ttiz|yigirma|to'qqiz|sakkiz|yetti|olti|besh|to'rt|uch|ikki|bir|o'n|nol)"
+_MIN_EXPR = rf"{_MIN_ALT}(?:\s+{_MIN_ALT})?"
+# "u"siz shaklda faqat aniq minut so'zlari (aks holda "o'n besh"=15:00 buziladi)
+_MIN_SAFE_EXPR = rf"(?:ellik|qirq|o'ttiz|nol)(?:\s+{_MIN_ALT})?"
+
+
+def _min_expr_to_minute(expr: str) -> int | None:
+    total = 0
+    for token in expr.split():
+        if token in _MIN_TENS:
+            total += _MIN_TENS[token]
+        elif token in _NUM_UNITS:
+            total += _NUM_UNITS[token]
+        else:
+            return None
+    return total if 0 <= total <= 59 else None
+
+
 # Vaqt shablonlari: (regex, minut manbai). Tartib muhim — aniqrog'i oldinda.
 _TIME_PATTERNS = [
     # 8:30 / 21.15
@@ -86,6 +108,10 @@ _TIME_PATTERNS = [
     (re.compile(r"\b(?P<h>\d{1,2})\s+yarim\s*(?:da|de|ga)?\b"), "thirty"),
     # 8 da
     (re.compile(r"\b(?P<h>\d{1,2})\s*(?:da|de)\b"), "zero"),
+    # sakkizu nol nolda / to'qqizu qirq beshda / o'n biru yigirmada
+    (re.compile(rf"\b(?:soat\s+)?(?P<w>{_WORD_EXPR})[\s-]*(?:u|yu)\b\s+(?P<min>{_MIN_EXPR})\s*(?:da|de|ga)?\b"), "wordmin"),
+    # sakkiz o'ttizda / sakkiz nol nolda ("u"siz — faqat aniq minut so'zlari)
+    (re.compile(rf"\b(?:soat\s+)?(?P<w>{_WORD_EXPR})\s+(?P<min>{_MIN_SAFE_EXPR})\s*(?:da|de|ga)?\b"), "wordmin"),
     # soat o'nda / soat sakkiz yarim
     (re.compile(rf"\bsoat\s+(?P<w>{_WORD_EXPR})(?P<half>\s+yarim)?\s*(?:da|de|ga)?\b"), "word"),
     # sakkizda / o'n beshda / sakkiz yarimda
@@ -99,7 +125,12 @@ def _find_time(low: str) -> tuple[int, int, int, int] | None:
         m = pattern.search(low)
         if not m:
             continue
-        if mode == "word":
+        if mode == "wordmin":
+            hour = _word_expr_to_hour(m.group("w"))
+            minute = _min_expr_to_minute(m.group("min"))
+            if hour is None or minute is None:
+                continue
+        elif mode == "word":
             hour = _word_expr_to_hour(m.group("w"))
             if hour is None:
                 continue

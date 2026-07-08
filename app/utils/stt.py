@@ -4,6 +4,7 @@ Telegram'dan kelgan ovozli xabar yuklab olinadi va API'ga yuboriladi,
 qaytgan matn eslatma sifatida qayta ishlanadi.
 """
 import logging
+import re
 from io import BytesIO
 
 import aiohttp
@@ -18,6 +19,12 @@ STT_URL = "https://uzbekvoice.ai/api/v1/stt"
 
 def stt_available() -> bool:
     return bool(MOHIR_API_KEY)
+
+
+def _strip_labels(text: str) -> str:
+    """STT qo'shadigan 'Speaker 0:' kabi yorliqlarni olib tashlaydi."""
+    text = re.sub(r"\bspeaker\s*\d+\s*:\s*", "", text, flags=re.IGNORECASE)
+    return re.sub(r"\s+", " ", text).strip()
 
 
 def _extract_text(payload) -> str | None:
@@ -73,4 +80,5 @@ async def transcribe_voice(bot: Bot, file_id: str) -> str | None:
     text = _extract_text(payload)
     if not text:
         logger.warning("STT javobidan matn topilmadi: %s", payload)
-    return text
+        return None
+    return _strip_labels(text) or None
