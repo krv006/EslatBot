@@ -23,18 +23,52 @@ main_menu = ReplyKeyboardMarkup(
 )
 
 
-def digest_settings_kb(enabled: bool, hour: int, minute: int) -> InlineKeyboardMarkup:
-    """Ertalabki reja (digest) sozlamalari."""
-    toggle_text = "🔕 O'chirish" if enabled else "🔔 Yoqish"
+def settings_kb(user: dict) -> InlineKeyboardMarkup:
+    """Sozlamalar: ertalabki digest + kechki reja so'rovi."""
+    dg_on = bool(user.get("digest_enabled"))
+    ev_on = bool(user.get("evening_enabled"))
+    dg_h = user.get("digest_hour") if user.get("digest_hour") is not None else 7
+    dg_m = user.get("digest_minute") or 0
+    ev_h = user.get("evening_hour") if user.get("evening_hour") is not None else 21
+    ev_m = user.get("evening_minute") or 0
     return InlineKeyboardMarkup(
         inline_keyboard=[
-            [InlineKeyboardButton(text=toggle_text, callback_data="dg_toggle")],
             [InlineKeyboardButton(
-                text=f"🕖 Vaqtini o'zgartirish ({hour:02d}:{minute:02d})",
+                text=f"🌅 Ertalabki reja: {'✅' if dg_on else '🔕'}",
+                callback_data="dg_toggle",
+            ),
+             InlineKeyboardButton(
+                text=f"🕖 {dg_h:02d}:{dg_m:02d}",
                 callback_data="dg_time",
+            )],
+            [InlineKeyboardButton(
+                text=f"🌙 Kechki so'rov: {'✅' if ev_on else '🔕'}",
+                callback_data="ev_toggle",
+            ),
+             InlineKeyboardButton(
+                text=f"🕘 {ev_h:02d}:{ev_m:02d}",
+                callback_data="ev_time",
             )],
         ]
     )
+
+
+def evening_prompt_kb() -> InlineKeyboardMarkup:
+    """Kechki 'ertaga reja qo'shasizmi?' xabari tugmalari."""
+    return InlineKeyboardMarkup(
+        inline_keyboard=[
+            [InlineKeyboardButton(text="➕ Reja qo'shish", callback_data="ev_add")],
+            [InlineKeyboardButton(text="⏭ Bugun shart emas", callback_data="ev_skip")],
+        ]
+    )
+
+
+BTN_PLAN_DONE = "✅ Tayyor"
+
+plan_done_kb = ReplyKeyboardMarkup(
+    keyboard=[[KeyboardButton(text=BTN_PLAN_DONE)]],
+    resize_keyboard=True,
+)
 
 
 def name_confirm_kb(tg_name: str) -> ReplyKeyboardMarkup:
@@ -58,10 +92,21 @@ phone_kb = ReplyKeyboardMarkup(
 
 freq_kb = InlineKeyboardMarkup(
     inline_keyboard=[
+        [InlineKeyboardButton(text="📌 Bir marta", callback_data="freq:once")],
         [InlineKeyboardButton(text="📅 Har kuni", callback_data="freq:daily")],
         [InlineKeyboardButton(text="🔁 Kun ora", callback_data="freq:every2")],
         [InlineKeyboardButton(text="📆 Haftada bir", callback_data="freq:weekly")],
         [InlineKeyboardButton(text="🗓 Oyda bir", callback_data="freq:monthly")],
+    ]
+)
+
+once_day_kb = InlineKeyboardMarkup(
+    inline_keyboard=[
+        [
+            InlineKeyboardButton(text="📍 Bugun", callback_data="od:0"),
+            InlineKeyboardButton(text="🌅 Ertaga", callback_data="od:1"),
+            InlineKeyboardButton(text="⏩ Indinga", callback_data="od:2"),
+        ]
     ]
 )
 

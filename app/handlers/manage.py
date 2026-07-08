@@ -17,7 +17,7 @@ router = Router()
 def _format_line(rem: dict) -> str:
     status = "🟢" if rem["is_active"] else "⏸"
     when = describe(rem["freq"], rem["weekday"], rem["monthday"],
-                    rem["hour"], rem["minute"])
+                    rem["hour"], rem["minute"], start_date=rem["start_date"])
     return f"{status} <b>{rem['text']}</b>\n🕒 {when}"
 
 
@@ -79,6 +79,10 @@ async def done_reminder(callback: CallbackQuery):
 @router.callback_query(F.data.startswith("snooze:"))
 async def snooze_reminder(callback: CallbackQuery):
     rid = int(callback.data.split(":")[1])
+    # Bir martalik eslatma yuborilgach o'chadi — snooze uchun qayta yoqamiz
+    rem = await db.get_reminder(rid)
+    if rem and rem["freq"] == "once" and not rem["is_active"]:
+        await db.set_reminder_active(rid, True)
     schedule_snooze(callback.bot, rid, minutes=10)
     await callback.message.edit_text(
         callback.message.html_text + "\n\n⏰ <i>10 daqiqadan keyin yana eslataman.</i>"

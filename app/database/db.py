@@ -20,7 +20,10 @@ CREATE TABLE IF NOT EXISTS users (
     registered INTEGER DEFAULT 0,
     digest_enabled INTEGER DEFAULT 1,
     digest_hour INTEGER DEFAULT 7,
-    digest_minute INTEGER DEFAULT 0
+    digest_minute INTEGER DEFAULT 0,
+    evening_enabled INTEGER DEFAULT 1,
+    evening_hour INTEGER DEFAULT 21,
+    evening_minute INTEGER DEFAULT 0
 );
 
 CREATE TABLE IF NOT EXISTS reminders (
@@ -51,6 +54,9 @@ USER_COLUMNS = {
     "digest_enabled": "INTEGER DEFAULT 1",
     "digest_hour": "INTEGER DEFAULT 7",
     "digest_minute": "INTEGER DEFAULT 0",
+    "evening_enabled": "INTEGER DEFAULT 1",
+    "evening_hour": "INTEGER DEFAULT 21",
+    "evening_minute": "INTEGER DEFAULT 0",
 }
 
 
@@ -165,6 +171,33 @@ async def set_digest_time(tg_id: int, hour: int, minute: int) -> None:
     async with aiosqlite.connect(DB_PATH) as conn:
         await conn.execute(
             "UPDATE users SET digest_hour = ?, digest_minute = ? WHERE tg_id = ?",
+            (hour, minute, tg_id),
+        )
+        await conn.commit()
+
+
+# --- Kechki reja so'rovi ---
+
+async def get_users_for_evening() -> list[dict]:
+    async with aiosqlite.connect(DB_PATH) as conn:
+        conn.row_factory = aiosqlite.Row
+        cur = await conn.execute("SELECT * FROM users WHERE evening_enabled = 1")
+        return [dict(r) for r in await cur.fetchall()]
+
+
+async def set_evening_enabled(tg_id: int, enabled: bool) -> None:
+    async with aiosqlite.connect(DB_PATH) as conn:
+        await conn.execute(
+            "UPDATE users SET evening_enabled = ? WHERE tg_id = ?",
+            (1 if enabled else 0, tg_id),
+        )
+        await conn.commit()
+
+
+async def set_evening_time(tg_id: int, hour: int, minute: int) -> None:
+    async with aiosqlite.connect(DB_PATH) as conn:
+        await conn.execute(
+            "UPDATE users SET evening_hour = ?, evening_minute = ? WHERE tg_id = ?",
             (hour, minute, tg_id),
         )
         await conn.commit()

@@ -3,6 +3,7 @@ yaratmaydi va o'zgartirmaydi, faqat o'qiydi/yozadi."""
 from django.db import models
 
 FREQ_CHOICES = [
+    ("once", "📌 Bir marta"),
     ("daily", "📅 Har kuni"),
     ("every2", "🔁 Kun ora"),
     ("weekly", "📆 Haftada bir"),
@@ -27,6 +28,9 @@ class BotUser(models.Model):
     digest_enabled = models.BooleanField("Digest yoqilgan", default=True)
     digest_hour = models.IntegerField("Digest soati", default=7)
     digest_minute = models.IntegerField("Digest daqiqasi", default=0)
+    evening_enabled = models.BooleanField("Kechki so'rov yoqilgan", default=True)
+    evening_hour = models.IntegerField("Kechki so'rov soati", default=21)
+    evening_minute = models.IntegerField("Kechki so'rov daqiqasi", default=0)
     created_at = models.DateTimeField("Kelgan vaqti", blank=True, null=True)
     last_seen = models.DateTimeField("Oxirgi faollik", blank=True, null=True)
 

@@ -12,7 +12,7 @@ from app.keyboards.keyboards import (
     name_confirm_kb,
     phone_kb,
 )
-from app.scheduler.scheduler import schedule_digest
+from app.scheduler.scheduler import schedule_digest, schedule_evening
 
 router = Router()
 
@@ -21,6 +21,7 @@ HELP_TEXT = (
     "<b>Qanday ishlataman?</b>\n"
     "1️⃣ <b>➕ Yangi eslatma</b> tugmasini bosing — men bosqichma-bosqich so'rayman.\n"
     "2️⃣ Yoki shunchaki <b>erkin yozing</b>, o'zim tushunaman:\n\n"
+    "   • <i>ertaga 15:00 uchrashuv</i>\n"
     "   • <i>har kuni soat 8 da dori ichishni eslat</i>\n"
     "   • <i>kun ora 21:30 kitob o'qish</i>\n"
     "   • <i>har juma 10 da mashg'ulot</i>\n"
@@ -108,16 +109,18 @@ async def _finish_registration(message: Message, state: FSMContext, phone_saved:
     await db.set_registered(message.from_user.id)
     await state.clear()
 
-    # Ertalabki kun rejasini jadvalga qo'shamiz
+    # Ertalabki digest va kechki reja so'rovini jadvalga qo'shamiz
     user = await db.get_user(message.from_user.id)
     if user:
         schedule_digest(message.bot, user)
+        schedule_evening(message.bot, user)
 
     extra = "📱 Raqamingiz saqlandi!\n\n" if phone_saved else ""
     await message.answer(
         f"✅ <b>Ro'yxatdan o'tdingiz!</b> {extra}\n" + HELP_TEXT + "\n\n"
-        "🌅 <b>Bonus:</b> har kuni ertalab <b>07:00</b> da bugungi rejalaringizni "
-        "bitta xabarda yuboraman. Vaqtini <b>⚙️ Sozlamalar</b>dan o'zgartirsangiz bo'ladi.",
+        "🌅 <b>Bonus:</b> har kuni ertalab <b>07:00</b> da bugungi rejalaringizni yuboraman, "
+        "kechqurun <b>21:00</b> da esa ertangi rejangizni so'rayman. "
+        "Ikkalasini ham <b>⚙️ Sozlamalar</b>dan boshqarasiz.",
         reply_markup=main_menu,
     )
 

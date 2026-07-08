@@ -7,11 +7,13 @@ from zoneinfo import ZoneInfo
 from aiogram import Bot
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
 from apscheduler.triggers.cron import CronTrigger
+from apscheduler.triggers.date import DateTrigger
 from apscheduler.triggers.interval import IntervalTrigger
 
 from app.config import TIMEZONE
 from app.database import db
-from app.keyboards.keyboards import reminder_fired_kb
+from app.keyboards.keyboards import evening_prompt_kb, reminder_fired_kb
+from app.utils.parser import MONTH_NAMES, WEEKDAY_NAMES
 
 logger = logging.getLogger(__name__)
 
@@ -35,6 +37,10 @@ async def send_reminder(bot: Bot, reminder_id: int) -> None:
         )
     except Exception:
         logger.exception("Eslatma yuborilmadi: id=%s", reminder_id)
+        return
+    # Bir martalik eslatma yuborilgach o'chadi (snooze uni qayta yoqadi)
+    if rem["freq"] == "once":
+        await db.set_reminder_active(reminder_id, False)
 
 
 def first_run_date(hour: int, minute: int) -> datetime:
@@ -46,10 +52,20 @@ def first_run_date(hour: int, minute: int) -> datetime:
     return first
 
 
+def once_run_date(offset_days: int, hour: int, minute: int) -> datetime:
+    """Bir martalik eslatma vaqti: bugun+offset kuni, soat hh:mm."""
+    now = datetime.now(TZ)
+    return (now + timedelta(days=offset_days)).replace(
+        hour=hour, minute=minute, second=0, microsecond=0
+    )
+
+
 def schedule_reminder(bot: Bot, rem: dict) -> None:
     """Bitta eslatmani jadvalga qo'shadi (bor bo'lsa yangilaydi)."""
     freq = rem["freq"]
-    if freq == "daily":
+    if freq == "once":
+        trigger = DateTrigger(run_date=datetime.fromisoformat(rem["start_date"]))
+    elif freq == "daily":
         trigger = CronTrigger(hour=rem["hour"], minute=rem["minute"], timezone=TZ)
     elif freq == "every2":
         start = datetime.fromisoformat(rem["start_date"])
@@ -108,6 +124,10 @@ async def load_all_reminders(bot: Bot) -> int:
 def is_today_reminder(rem: dict, today) -> bool:
     """Eslatma bugungi kunga tegishlimi?"""
     freq = rem["freq"]
+    if freq == "once":
+        if not rem["start_date"]:
+            return False
+        return datetime.fromisoformat(rem["start_date"]).date() == today
     if freq == "daily":
         return True
     if freq == "weekly":
@@ -122,15 +142,7 @@ def is_today_reminder(rem: dict, today) -> bool:
     return False
 
 
-MONTH_NAMES = [
-    "yanvar", "fevral", "mart", "aprel", "may", "iyun",
-    "iyul", "avgust", "sentyabr", "oktyabr", "noyabr", "dekabr",
-]
-
-WEEKDAY_NAMES_LOW = [
-    "dushanba", "seshanba", "chorshanba", "payshanba",
-    "juma", "shanba", "yakshanba",
-]
+WEEKDAY_NAMES_LOW = [d.lower() for d in WEEKDAY_NAMES]
 
 # Rejasiz kunlar uchun har xil iliq xabarlar (zerikarli bo'lmasligi uchun)
 EMPTY_DAY_MESSAGES = [
@@ -225,4 +237,58 @@ async def load_all_digests(bot: Bot) -> int:
     for user in users:
         schedule_digest(bot, user)
     logger.info("%d ta digest jadvalga yuklandi", len(users))
+    return len(users)
+
+
+# =====================================================================
+# Kechki reja so'rovi — "Ertaga uchun reja qo'shasizmi?"
+# =====================================================================
+
+async def send_evening_prompt(bot: Bot, user_db_id: int) -> None:
+    user = await db.get_user_by_id(user_db_id)
+    if not user or not user.get("evening_enabled"):
+        return
+    name = user.get("name") or "do'stim"
+    try:
+        await bot.send_message(
+            user["tg_id"],
+            f"🌙 Xayrli kech, <b>{name}</b>!\n\n"
+            f"Ertaga uchun reja qo'shasizmi? Ertalab kun rejangizda chiqadi, "
+            f"vaqti kelganda alohida eslataman.",
+            reply_markup=evening_prompt_kb(),
+        )
+    except Exception:
+        logger.exception("Kechki so'rov yuborilmadi: user_db_id=%s", user_db_id)
+
+
+def schedule_evening(bot: Bot, user: dict) -> None:
+    """Foydalanuvchining kechki so'rov vaqtiga cron qo'yadi (idempotent)."""
+    if not user.get("evening_enabled"):
+        unschedule_evening(user["id"])
+        return
+    hour = user.get("evening_hour")
+    minute = user.get("evening_minute")
+    scheduler.add_job(
+        send_evening_prompt,
+        CronTrigger(hour=21 if hour is None else hour,
+                    minute=0 if minute is None else minute,
+                    timezone=TZ),
+        args=[bot, user["id"]],
+        id=f"evening_{user['id']}",
+        replace_existing=True,
+        misfire_grace_time=3600,
+    )
+
+
+def unschedule_evening(user_db_id: int) -> None:
+    job = scheduler.get_job(f"evening_{user_db_id}")
+    if job:
+        job.remove()
+
+
+async def load_all_evenings(bot: Bot) -> int:
+    users = await db.get_users_for_evening()
+    for user in users:
+        schedule_evening(bot, user)
+    logger.info("%d ta kechki so'rov jadvalga yuklandi", len(users))
     return len(users)

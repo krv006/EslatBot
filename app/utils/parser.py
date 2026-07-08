@@ -7,6 +7,7 @@ Misollar:
     "har oyning 15-kuni 9:00 kvartira puli"    -> monthly(15), 09:00
 """
 import re
+from datetime import datetime
 
 WEEKDAYS = {
     "dushanba": 0,
@@ -22,11 +23,17 @@ WEEKDAY_NAMES = ["Dushanba", "Seshanba", "Chorshanba", "Payshanba",
                  "Juma", "Shanba", "Yakshanba"]
 
 FREQ_NAMES = {
+    "once": "Bir marta",
     "daily": "Har kuni",
     "every2": "Kun ora",
     "weekly": "Haftada bir",
     "monthly": "Oyda bir",
 }
+
+MONTH_NAMES = [
+    "yanvar", "fevral", "mart", "aprel", "may", "iyun",
+    "iyul", "avgust", "sentyabr", "oktyabr", "noyabr", "dekabr",
+]
 
 # Matndan olib tashlanadigan "shovqin" so'zlar
 FILLER_RE = re.compile(
@@ -44,9 +51,24 @@ def parse_text(raw: str) -> dict:
         "monthday": None,
         "hour": None,
         "minute": None,
+        "once_offset": None,  # 0=bugun, 1=ertaga, 2=indinga
     }
     text = " " + raw.strip() + " "
     low = text.lower()
+
+    # --- Bir martalik: bugun / ertaga / indinga ---
+    m = re.search(r"\b(bugun|ertaga|indin(?:ga)?)\b", low)
+    if m:
+        word = m.group(1)
+        result["freq"] = "once"
+        if word == "bugun":
+            result["once_offset"] = 0
+        elif word == "ertaga":
+            result["once_offset"] = 1
+        else:
+            result["once_offset"] = 2
+        text = text[:m.start()] + " " + text[m.end():]
+        low = text.lower()
 
     # --- Takrorlanish turi ---
     m = re.search(r"\bkun\s*ora\b|\bkunora\b|\bhar\s+2\s+kun(da)?\b", low)
@@ -154,9 +176,15 @@ def parse_time(raw: str) -> tuple[int, int] | None:
 
 
 def describe(freq: str, weekday: int | None, monthday: int | None,
-             hour: int, minute: int) -> str:
+             hour: int, minute: int, start_date: str | None = None) -> str:
     """Insonga tushunarli tavsif: 'Har juma, soat 09:00'."""
     t = f"{hour:02d}:{minute:02d}"
+    if freq == "once":
+        if start_date:
+            dt = datetime.fromisoformat(start_date)
+            return (f"Bir marta: {dt.day}-{MONTH_NAMES[dt.month - 1]} "
+                    f"({WEEKDAY_NAMES[dt.weekday()].lower()}), soat {t}")
+        return f"Bir marta, soat {t}"
     if freq == "daily":
         return f"Har kuni, soat {t}"
     if freq == "every2":

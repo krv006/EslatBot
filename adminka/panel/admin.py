@@ -22,9 +22,10 @@ class BotUserAdmin(admin.ModelAdmin):
     list_display = (
         "id", "name", "last_name", "tg_username", "phone_display", "tg_id",
         "language_code", "is_premium", "registered", "digest_display",
-        "reminders_count", "created_at", "last_seen",
+        "evening_display", "reminders_count", "created_at", "last_seen",
     )
-    list_filter = ("registered", "is_premium", "digest_enabled", "language_code")
+    list_filter = ("registered", "is_premium", "digest_enabled",
+                   "evening_enabled", "language_code")
     search_fields = ("name", "last_name", "username", "phone", "tg_id")
     ordering = ("-id",)
     inlines = [ReminderInline]
@@ -53,6 +54,12 @@ class BotUserAdmin(admin.ModelAdmin):
     def digest_display(self, obj):
         if obj.digest_enabled:
             return f"✅ {obj.digest_hour or 7:02d}:{obj.digest_minute or 0:02d}"
+        return "🔕"
+
+    @admin.display(description="🌙 Kechki so'rov")
+    def evening_display(self, obj):
+        if obj.evening_enabled:
+            return f"✅ {obj.evening_hour or 21:02d}:{obj.evening_minute or 0:02d}"
         return "🔕"
 
     @admin.display(description="Eslatmalari", ordering="_rc")

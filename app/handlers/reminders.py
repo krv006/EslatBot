@@ -4,9 +4,24 @@ from aiogram.fsm.context import FSMContext
 from aiogram.fsm.state import State, StatesGroup
 from aiogram.types import CallbackQuery, Message
 
+from datetime import datetime
+
 from app.database import db
-from app.keyboards.keyboards import BTN_NEW, freq_kb, main_menu, weekday_kb
-from app.scheduler.scheduler import first_run_date, schedule_digest, schedule_reminder
+from app.keyboards.keyboards import (
+    BTN_NEW,
+    freq_kb,
+    main_menu,
+    once_day_kb,
+    weekday_kb,
+)
+from app.scheduler.scheduler import (
+    TZ,
+    first_run_date,
+    once_run_date,
+    schedule_digest,
+    schedule_evening,
+    schedule_reminder,
+)
 from app.utils.parser import describe, parse_text, parse_time
 
 router = Router()
@@ -15,6 +30,7 @@ router = Router()
 class NewReminder(StatesGroup):
     text = State()
     freq = State()
+    once_day = State()
     weekday = State()
     monthday = State()
     time_ = State()
@@ -26,6 +42,9 @@ async def ask_next(message: Message, state: FSMContext):
     if data.get("freq") is None:
         await state.set_state(NewReminder.freq)
         await message.answer("Qanchalik tez-tez eslatay? 👇", reply_markup=freq_kb)
+    elif data["freq"] == "once" and data.get("once_offset") is None:
+        await state.set_state(NewReminder.once_day)
+        await message.answer("Qaysi kunga? 👇", reply_markup=once_day_kb)
     elif data["freq"] == "weekly" and data.get("weekday") is None:
         await state.set_state(NewReminder.weekday)
         await message.answer("Haftaning qaysi kuni? 👇", reply_markup=weekday_kb)
@@ -42,14 +61,28 @@ async def ask_next(message: Message, state: FSMContext):
 async def finalize(message: Message, state: FSMContext):
     """Eslatmani bazaga yozib, jadvalga qo'shadi."""
     data = await state.get_data()
+
+    start_date = None
+    if data["freq"] == "once":
+        dt = once_run_date(data.get("once_offset") or 0, data["hour"], data["minute"])
+        if dt <= datetime.now(TZ):
+            # "Bugun"ga tanlangan vaqt allaqachon o'tib ketgan
+            await state.set_state(NewReminder.time_)
+            await state.update_data(hour=None, minute=None)
+            await message.answer(
+                "⚠️ Bu vaqt bugun allaqachon o'tib ketdi 😅\n"
+                "Boshqa vaqt yozing (masalan <b>21:30</b>) yoki /start bilan qaytadan boshlang."
+            )
+            return
+        start_date = dt.isoformat()
+    elif data["freq"] == "every2":
+        start_date = first_run_date(data["hour"], data["minute"]).isoformat()
+
     await state.clear()
 
     # user_db_id oqim boshida saqlangan — callback orqali kelganda
     # message.from_user bot bo'lib qolishi mumkin, shuning uchun undan olmaymiz
     user_id = data["user_db_id"]
-    start_date = None
-    if data["freq"] == "every2":
-        start_date = first_run_date(data["hour"], data["minute"]).isoformat()
 
     reminder_id = await db.add_reminder(
         user_id=user_id,
@@ -64,13 +97,14 @@ async def finalize(message: Message, state: FSMContext):
     rem = await db.get_reminder(reminder_id)
     schedule_reminder(message.bot, rem)
 
-    # User /start siz (erkin matn orqali) kelgan bo'lsa ham digestini yoqamiz
+    # User /start siz (erkin matn orqali) kelgan bo'lsa ham digest/kechki so'rovini yoqamiz
     user = await db.get_user_by_id(user_id)
     if user:
         schedule_digest(message.bot, user)
+        schedule_evening(message.bot, user)
 
     when = describe(data["freq"], data.get("weekday"), data.get("monthday"),
-                    data["hour"], data["minute"])
+                    data["hour"], data["minute"], start_date=start_date)
     await message.answer(
         f"✅ Eslatma saqlandi!\n\n"
         f"📝 <b>{data['text']}</b>\n"
@@ -104,6 +138,14 @@ async def got_text(message: Message, state: FSMContext):
 async def got_freq(callback: CallbackQuery, state: FSMContext):
     freq = callback.data.split(":")[1]
     await state.update_data(freq=freq)
+    await callback.message.edit_reply_markup(reply_markup=None)
+    await callback.answer()
+    await ask_next(callback.message, state)
+
+
+@router.callback_query(NewReminder.once_day, F.data.startswith("od:"))
+async def got_once_day(callback: CallbackQuery, state: FSMContext):
+    await state.update_data(once_offset=int(callback.data.split(":")[1]))
     await callback.message.edit_reply_markup(reply_markup=None)
     await callback.answer()
     await ask_next(callback.message, state)
@@ -166,9 +208,12 @@ async def _handle_parsed(message: Message, state: FSMContext, raw: str):
         monthday=parsed["monthday"],
         hour=parsed["hour"],
         minute=parsed["minute"],
+        once_offset=parsed["once_offset"],
     )
     found = []
-    if parsed["freq"]:
+    if parsed["freq"] == "once" and parsed["once_offset"] is not None:
+        found.append("kunni")
+    elif parsed["freq"]:
         found.append("takrorlanishni")
     if parsed["hour"] is not None:
         found.append("vaqtni")
