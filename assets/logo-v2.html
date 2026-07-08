@@ -1,0 +1,25 @@
+<!doctype html>
+<html><head><style>html,body{margin:0;padding:0}svg{display:block}</style></head>
+<body>
+<svg width="1024" height="1024" viewBox="0 0 1024 1024" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#6366F1"/>
+      <stop offset="1" stop-color="#3730A3"/>
+    </linearGradient>
+    <mask id="cut">
+      <rect width="1024" height="1024" fill="#fff"/>
+      <!-- belgi (check) kesib olinadi -->
+      <path d="M408 528 L 492 612 L 640 452" fill="none" stroke="#000"
+            stroke-width="58" stroke-linecap="round" stroke-linejoin="round"/>
+    </mask>
+  </defs>
+  <rect width="1024" height="1024" rx="230" fill="url(#bg)"/>
+  <g mask="url(#cut)">
+    <rect x="484" y="238" width="56" height="90" rx="28" fill="#fff"/>
+    <path d="M312 662 V 500 a 200 200 0 0 1 400 0 V 662 Z" fill="#fff"/>
+    <rect x="260" y="646" width="504" height="62" rx="31" fill="#fff"/>
+    <path d="M450 742 a 62 62 0 0 0 124 0 Z" fill="#fff"/>
+  </g>
+</svg>
+</body></html>
