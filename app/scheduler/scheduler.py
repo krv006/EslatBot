@@ -13,6 +13,7 @@ from apscheduler.triggers.interval import IntervalTrigger
 from app.config import TIMEZONE
 from app.database import db
 from app.keyboards.keyboards import reminder_fired_kb
+from app.utils.fmt import esc
 from app.utils.parser import MONTH_NAMES, WEEKDAY_NAMES
 
 logger = logging.getLogger(__name__)
@@ -32,7 +33,7 @@ async def send_reminder(bot: Bot, reminder_id: int) -> None:
     try:
         await bot.send_message(
             rem["tg_id"],
-            f"🔔 <b>Eslatma!</b>\n\n{rem['text']}",
+            f"🔔 <b>Eslatma!</b>\n\n{esc(rem['text'])}",
             reply_markup=reminder_fired_kb(reminder_id),
         )
     except Exception:
@@ -172,10 +173,10 @@ def build_digest_text(name: str, reminders: list[dict]) -> str:
     """Kun rejasi matnini tuzadi. Eslatmalar vaqt bo'yicha tartiblanadi."""
     greeting, date_line = _greeting_and_date()
     count = len(reminders)
-    lines = [f"{greeting}, <b>{name}</b>!", date_line, ""]
+    lines = [f"{greeting}, <b>{esc(name)}</b>!", date_line, ""]
     lines.append(f"Bugun sizda <b>{count} ta</b> reja bor:\n")
     for rem in sorted(reminders, key=lambda r: (r["hour"], r["minute"])):
-        lines.append(f"🕒 <b>{rem['hour']:02d}:{rem['minute']:02d}</b> — {rem['text']}")
+        lines.append(f"🕒 <b>{rem['hour']:02d}:{rem['minute']:02d}</b> — {esc(rem['text'])}")
     lines.append("\nHar birini o'z vaqtida alohida eslataman! 💪")
     return "\n".join(lines)
 
@@ -183,7 +184,7 @@ def build_digest_text(name: str, reminders: list[dict]) -> str:
 def build_empty_digest_text(name: str) -> str:
     """Rejasiz kun uchun iliq salomlashuv."""
     greeting, date_line = _greeting_and_date()
-    return (f"{greeting}, <b>{name}</b>!\n{date_line}\n\n"
+    return (f"{greeting}, <b>{esc(name)}</b>!\n{date_line}\n\n"
             f"{random.choice(EMPTY_DAY_MESSAGES)}")
 
 

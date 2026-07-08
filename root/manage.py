@@ -1,5 +1,5 @@
 #!/usr/bin/env python
-"""Adminka boshqaruvi. Ishga tushirish: python adminka\\manage.py runserver"""
+"""Adminka boshqaruvi. Ishga tushirish: python root\\manage.py runserver"""
 import os
 import sys
 

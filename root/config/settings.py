@@ -7,24 +7,45 @@ Django faqat o'zining auth/session jadvallarini qo'shadi.
 import os
 from pathlib import Path
 
+from django.core.exceptions import ImproperlyConfigured
 from dotenv import load_dotenv
 
-# adminka/config/settings.py -> loyiha ildizi (EslatBot/)
+# root/config/settings.py -> loyiha ildizi (EslatBot/)
 PROJECT_ROOT = Path(__file__).resolve().parent.parent.parent
 BASE_DIR = Path(__file__).resolve().parent.parent
 
 load_dotenv(PROJECT_ROOT / ".env")
 
-SECRET_KEY = os.getenv(
-    "DJANGO_SECRET_KEY",
-    "django-insecure-eslatbot-adminka-mahalliy-kalit-o1x9v2",
-)
 # Serverda .env orqali DJANGO_DEBUG=0 qilinadi
 DEBUG = os.getenv("DJANGO_DEBUG", "1") == "1"
+
+SECRET_KEY = os.getenv("DJANGO_SECRET_KEY", "")
+if not SECRET_KEY:
+    if DEBUG:
+        SECRET_KEY = "django-insecure-faqat-lokal-dev-uchun"
+    else:
+        raise ImproperlyConfigured(
+            "DJANGO_SECRET_KEY .env faylida yo'q! Production'da majburiy."
+        )
+
 ALLOWED_HOSTS = os.getenv("DJANGO_ALLOWED_HOSTS", "*").split(",")
 CSRF_TRUSTED_ORIGINS = [
     o for o in os.getenv("DJANGO_CSRF_TRUSTED_ORIGINS", "").split(",") if o
 ]
+
+# --- Xavfsizlik ---
+X_FRAME_OPTIONS = "DENY"
+SESSION_COOKIE_HTTPONLY = True
+CSRF_COOKIE_HTTPONLY = True
+SESSION_COOKIE_AGE = 60 * 60 * 12  # 12 soat
+
+# HTTPS orqasida ishlaganda .env da DJANGO_HTTPS=1 qilinadi
+if os.getenv("DJANGO_HTTPS", "0") == "1":
+    SECURE_SSL_REDIRECT = True
+    SESSION_COOKIE_SECURE = True
+    CSRF_COOKIE_SECURE = True
+    SECURE_HSTS_SECONDS = 3600
+    SECURE_PROXY_SSL_HEADER = ("HTTP_X_FORWARDED_PROTO", "https")
 
 INSTALLED_APPS = [
     "django.contrib.admin",

@@ -17,7 +17,9 @@ from aiogram.types import (
 from app.database import db
 from app.keyboards.keyboards import BTN_PLAN, BTN_PLAN_DONE, main_menu, plan_done_kb
 from app.scheduler.scheduler import TZ, once_run_date, schedule_reminder
+from app.utils.fmt import esc
 from app.utils.parser import parse_text
+from app.utils.stt import stt_available, transcribe_voice
 
 router = Router()
 
@@ -80,8 +82,6 @@ async def plan_done(message: Message, state: FSMContext):
 
 @router.message(DayPlan.items, F.voice)
 async def plan_items_voice(message: Message, state: FSMContext):
-    from app.utils.stt import stt_available, transcribe_voice
-
     if not stt_available():
         await message.answer("Iltimos, rejalarni yozib yuboring 😊")
         return
@@ -130,7 +130,9 @@ async def _process_plan_text(message: Message, state: FSMContext, raw: str):
         )
         rem = await db.get_reminder(reminder_id)
         schedule_reminder(message.bot, rem)
-        added.append(f"🕒 {parsed['hour']:02d}:{parsed['minute']:02d} — {parsed['text']}")
+        added.append(
+            f"🕒 {parsed['hour']:02d}:{parsed['minute']:02d} — {esc(parsed['text'])}"
+        )
 
     await state.update_data(added=data.get("added", 0) + len(added))
 
@@ -140,12 +142,12 @@ async def _process_plan_text(message: Message, state: FSMContext, raw: str):
     if passed:
         parts.append(
             "⚠️ Bu vaqtlar bugun allaqachon o'tib ketgan:\n"
-            + "\n".join(f"• {p}" for p in passed)
+            + "\n".join(f"• {esc(p)}" for p in passed)
         )
     if failed:
         parts.append(
             "⚠️ Bularni tushunmadim (vaqtini yozing, masalan «09:00 uchrashuv»):\n"
-            + "\n".join(f"• {f}" for f in failed)
+            + "\n".join(f"• {esc(f)}" for f in failed)
         )
     parts.append("Yana yozing yoki <b>✅ Tayyor</b> ni bosing 👇")
     await message.answer("\n\n".join(parts), reply_markup=plan_done_kb)

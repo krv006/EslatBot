@@ -9,6 +9,7 @@ from app.scheduler.scheduler import (
     schedule_snooze,
     unschedule_reminder,
 )
+from app.utils.fmt import esc
 from app.utils.parser import describe
 
 router = Router()
@@ -18,7 +19,7 @@ def _format_line(rem: dict) -> str:
     status = "🟢" if rem["is_active"] else "⏸"
     when = describe(rem["freq"], rem["weekday"], rem["monthday"],
                     rem["hour"], rem["minute"], start_date=rem["start_date"])
-    return f"{status} <b>{rem['text']}</b>\n🕒 {when}"
+    return f"{status} <b>{esc(rem['text'])}</b>\n🕒 {when}"
 
 
 @router.message(F.text == BTN_LIST)

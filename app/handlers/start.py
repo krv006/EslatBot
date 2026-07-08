@@ -13,6 +13,7 @@ from app.keyboards.keyboards import (
     phone_kb,
 )
 from app.scheduler.scheduler import schedule_digest
+from app.utils.fmt import esc
 
 router = Router()
 
@@ -48,7 +49,8 @@ async def cmd_start(message: Message, state: FSMContext):
     # Avval ro'yxatdan o'tgan bo'lsa — to'g'ridan-to'g'ri menyu
     if user and user.get("registered"):
         await message.answer(
-            f"Yana xush kelibsiz, <b>{user.get('name') or tg_name}</b>! 👋\n\n" + HELP_TEXT,
+            f"Yana xush kelibsiz, <b>{esc(user.get('name') or tg_name)}</b>! 👋\n\n"
+            + HELP_TEXT,
             reply_markup=main_menu,
         )
         return
@@ -56,7 +58,7 @@ async def cmd_start(message: Message, state: FSMContext):
     # Sodda ro'yxatdan o'tish: 1) ism  2) telefon
     await state.set_state(Registration.name)
     await message.answer(
-        f"Assalomu alaykum, <b>{tg_name}</b>! 👋\n"
+        f"Assalomu alaykum, <b>{esc(tg_name)}</b>! 👋\n"
         f"Men <b>EslatBot</b>man — muhim ishlaringizni unutmasligingizga yordam beraman.\n\n"
         f"Avval qisqa tanishib olaylik. <b>Ismingiz nima?</b>\n"
         f"Yozing yoki pastdagi tugmani bosing 👇",
@@ -73,7 +75,7 @@ async def reg_name(message: Message, state: FSMContext):
     await db.set_name(message.from_user.id, name)
     await state.set_state(Registration.phone)
     await message.answer(
-        f"Juda yaxshi, <b>{name}</b>! 🤝\n\n"
+        f"Juda yaxshi, <b>{esc(name)}</b>! 🤝\n\n"
         f"Endi telefon raqamingizni ulashsangiz bo'ladi "
         f"(ixtiyoriy — o'tkazib yuborishingiz ham mumkin) 👇",
         reply_markup=phone_kb,

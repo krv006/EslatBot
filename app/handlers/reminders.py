@@ -1,4 +1,6 @@
 """Yangi eslatma yaratish oqimi (FSM) + erkin matnni avtomatik tushunish."""
+import re
+
 from aiogram import F, Router
 from aiogram.fsm.context import FSMContext
 from aiogram.fsm.state import State, StatesGroup
@@ -21,7 +23,10 @@ from app.scheduler.scheduler import (
     schedule_digest,
     schedule_reminder,
 )
+from app.utils.ai import ai_available, ai_parse_reminder
+from app.utils.fmt import esc
 from app.utils.parser import describe, parse_text, parse_time
+from app.utils.stt import stt_available, transcribe_voice
 
 router = Router()
 
@@ -105,7 +110,7 @@ async def finalize(message: Message, state: FSMContext):
                     data["hour"], data["minute"], start_date=start_date)
     await message.answer(
         f"✅ Eslatma saqlandi!\n\n"
-        f"📝 <b>{data['text']}</b>\n"
+        f"📝 <b>{esc(data['text'])}</b>\n"
         f"🕒 {when}\n\n"
         f"Vaqti kelganda albatta eslataman! 😉",
         reply_markup=main_menu,
@@ -159,11 +164,11 @@ async def got_weekday(callback: CallbackQuery, state: FSMContext):
 
 @router.message(NewReminder.monthday, F.text)
 async def got_monthday(message: Message, state: FSMContext):
-    raw = message.text.strip().rstrip("-kuni").strip()
-    if not raw.isdigit() or not 1 <= int(raw) <= 31:
+    m = re.search(r"\d{1,2}", message.text)
+    if not m or not 1 <= int(m.group()) <= 31:
         await message.answer("Iltimos, 1 dan 31 gacha raqam yozing. Masalan: <b>15</b>")
         return
-    day = int(raw)
+    day = int(m.group())
     if day > 28:
         await message.answer(
             f"⚠️ Eslatib o'taman: ba'zi oylarda {day}-kun yo'q, "
@@ -189,8 +194,6 @@ async def got_time(message: Message, state: FSMContext):
 
 @router.message(F.voice)
 async def voice_message(message: Message, state: FSMContext):
-    from app.utils.stt import stt_available, transcribe_voice
-
     if not stt_available():
         await message.answer(
             "Ovozli xabarlarni hozircha tushunmayman 😅 Iltimos, yozib yuboring."
@@ -216,10 +219,9 @@ async def voice_message(message: Message, state: FSMContext):
             "Ovozni tushuna olmadim 😔 Qaytadan urinib ko'ring yoki yozib yuboring."
         )
         return
-    await wait_msg.edit_text(f"🎙 Eshitdim: <i>«{text}»</i>")
+    await wait_msg.edit_text(f"🎙 Eshitdim: <i>«{esc(text)}»</i>")
 
     # AI (Gemini) bilan chuqur tahlil; ishlamasa oddiy regex'ga o'tadi
-    from app.utils.ai import ai_available, ai_parse_reminder
     parsed = await ai_parse_reminder(text) if ai_available() else None
     await _handle_parsed(message, state, text, parsed=parsed)
 
