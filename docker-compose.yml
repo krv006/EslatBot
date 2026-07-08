@@ -20,13 +20,19 @@ services:
     environment:
       DB_NAME: data/eslatbot.db
       DJANGO_DEBUG: "0"
+    # Faqat localhost'dan: serverda tashqi nginx shu portga proxy qiladi
+    ports:
+      - "127.0.0.1:${ADMIN_PORT:-8001}:8000"
     volumes:
       - bot_data:/app/data
       - static_files:/app/root/staticfiles
     restart: unless-stopped
 
   # Caddy — tashqi kirish nuqtasi. Domen berilsa HTTPS avtomatik!
+  # Faqat 80/443 bo'sh serverlarda: .env da COMPOSE_PROFILES=caddy
+  # Serverda boshqa nginx bo'lsa — kerak emas (u o'zi proxy qiladi).
   caddy:
+    profiles: ["caddy"]
     image: caddy:2-alpine
     container_name: eslatbot_caddy
     ports:

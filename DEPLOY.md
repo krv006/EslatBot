@@ -49,9 +49,45 @@ DJANGO_SUPERUSER_PASSWORD=   # KUCHLI parol!
 docker compose up -d --build
 ```
 
-Tayyor! 1-2 daqiqada Caddy sertifikat oladi va:
-- Bot Telegram'da ishlaydi
-- Adminka: **https://eslat.thesofmebel.uz/admin/**
+## Kirish rejimini tanlash
+
+**A) Server bo'sh (80/443 hech kim ishlatmaydi)** — `.env` da:
+```
+COMPOSE_PROFILES=caddy
+DOMAIN=eslat.thesofmebel.uz
+```
+Caddy o'zi HTTPS sertifikat oladi. Tayyor: https://eslat.thesofmebel.uz/admin/
+
+**B) Serverda boshqa sayt(lar) bor (80-port band, nginx ishlayapti)** —
+`.env` da `COMPOSE_PROFILES` va `DOMAIN` ni bo'sh qoldiring.
+Adminka 127.0.0.1:8001 da turadi, tashqi nginx unga proxy qiladi:
+
+```bash
+# nginx sayt konfigi
+cat > /etc/nginx/sites-available/eslat <<'EOF'
+server {
+    listen 80;
+    server_name eslat.thesofmebel.uz;
+
+    location / {
+        proxy_pass http://127.0.0.1:8001;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+    }
+}
+EOF
+ln -s /etc/nginx/sites-available/eslat /etc/nginx/sites-enabled/
+nginx -t && systemctl reload nginx
+
+# HTTPS sertifikat (bepul, avto-yangilanadi)
+apt install -y certbot python3-certbot-nginx
+certbot --nginx -d eslat.thesofmebel.uz
+```
+
+Tayyor: **https://eslat.thesofmebel.uz/admin/**
+(static fayllarni Django o'zi beradi — whitenoise, alohida sozlash kerak emas)
 
 ## Kundalik buyruqlar
 
