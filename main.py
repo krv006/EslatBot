@@ -8,10 +8,9 @@ from aiogram.enums import ParseMode
 
 from app.config import BOT_TOKEN
 from app.database import db
-from app.handlers import evening, manage, reminders, settings, start
+from app.handlers import dayplan, manage, reminders, settings, start
 from app.scheduler.scheduler import (
     load_all_digests,
-    load_all_evenings,
     load_all_reminders,
     scheduler,
 )
@@ -39,13 +38,12 @@ async def main() -> None:
     # DIQQAT: reminders.router oxirida — unda erkin matnni ushlaydigan handler bor
     dp.include_routers(
         start.router, manage.router, settings.router,
-        evening.router, reminders.router,
+        dayplan.router, reminders.router,
     )
 
     scheduler.start()
     await load_all_reminders(bot)
     await load_all_digests(bot)
-    await load_all_evenings(bot)
 
     logger.info("EslatBot ishga tushdi! 🚀")
     await bot.delete_webhook(drop_pending_updates=True)

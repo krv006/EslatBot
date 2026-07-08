@@ -10,6 +10,7 @@ from app.utils.parser import WEEKDAY_NAMES
 
 BTN_NEW = "➕ Yangi eslatma"
 BTN_LIST = "📋 Eslatmalarim"
+BTN_PLAN = "📝 Kunlik reja"
 BTN_SETTINGS = "⚙️ Sozlamalar"
 BTN_SKIP = "⏭ O'tkazib yuborish"
 BTN_SHARE_PHONE = "📱 Raqamni ulashish"
@@ -17,20 +18,17 @@ BTN_SHARE_PHONE = "📱 Raqamni ulashish"
 main_menu = ReplyKeyboardMarkup(
     keyboard=[
         [KeyboardButton(text=BTN_NEW), KeyboardButton(text=BTN_LIST)],
-        [KeyboardButton(text=BTN_SETTINGS)],
+        [KeyboardButton(text=BTN_PLAN), KeyboardButton(text=BTN_SETTINGS)],
     ],
     resize_keyboard=True,
 )
 
 
 def settings_kb(user: dict) -> InlineKeyboardMarkup:
-    """Sozlamalar: ertalabki digest + kechki reja so'rovi."""
+    """Sozlamalar: ertalabki kun rejasi (digest)."""
     dg_on = bool(user.get("digest_enabled"))
-    ev_on = bool(user.get("evening_enabled"))
     dg_h = user.get("digest_hour") if user.get("digest_hour") is not None else 7
     dg_m = user.get("digest_minute") or 0
-    ev_h = user.get("evening_hour") if user.get("evening_hour") is not None else 21
-    ev_m = user.get("evening_minute") or 0
     return InlineKeyboardMarkup(
         inline_keyboard=[
             [InlineKeyboardButton(
@@ -41,24 +39,6 @@ def settings_kb(user: dict) -> InlineKeyboardMarkup:
                 text=f"🕖 {dg_h:02d}:{dg_m:02d}",
                 callback_data="dg_time",
             )],
-            [InlineKeyboardButton(
-                text=f"🌙 Kechki so'rov: {'✅' if ev_on else '🔕'}",
-                callback_data="ev_toggle",
-            ),
-             InlineKeyboardButton(
-                text=f"🕘 {ev_h:02d}:{ev_m:02d}",
-                callback_data="ev_time",
-            )],
-        ]
-    )
-
-
-def evening_prompt_kb() -> InlineKeyboardMarkup:
-    """Kechki 'ertaga reja qo'shasizmi?' xabari tugmalari."""
-    return InlineKeyboardMarkup(
-        inline_keyboard=[
-            [InlineKeyboardButton(text="➕ Reja qo'shish", callback_data="ev_add")],
-            [InlineKeyboardButton(text="⏭ Bugun shart emas", callback_data="ev_skip")],
         ]
     )
 

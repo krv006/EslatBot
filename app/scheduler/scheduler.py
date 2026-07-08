@@ -12,7 +12,7 @@ from apscheduler.triggers.interval import IntervalTrigger
 
 from app.config import TIMEZONE
 from app.database import db
-from app.keyboards.keyboards import evening_prompt_kb, reminder_fired_kb
+from app.keyboards.keyboards import reminder_fired_kb
 from app.utils.parser import MONTH_NAMES, WEEKDAY_NAMES
 
 logger = logging.getLogger(__name__)
@@ -237,58 +237,4 @@ async def load_all_digests(bot: Bot) -> int:
     for user in users:
         schedule_digest(bot, user)
     logger.info("%d ta digest jadvalga yuklandi", len(users))
-    return len(users)
-
-
-# =====================================================================
-# Kechki reja so'rovi — "Ertaga uchun reja qo'shasizmi?"
-# =====================================================================
-
-async def send_evening_prompt(bot: Bot, user_db_id: int) -> None:
-    user = await db.get_user_by_id(user_db_id)
-    if not user or not user.get("evening_enabled"):
-        return
-    name = user.get("name") or "do'stim"
-    try:
-        await bot.send_message(
-            user["tg_id"],
-            f"🌙 Xayrli kech, <b>{name}</b>!\n\n"
-            f"Ertaga uchun reja qo'shasizmi? Ertalab kun rejangizda chiqadi, "
-            f"vaqti kelganda alohida eslataman.",
-            reply_markup=evening_prompt_kb(),
-        )
-    except Exception:
-        logger.exception("Kechki so'rov yuborilmadi: user_db_id=%s", user_db_id)
-
-
-def schedule_evening(bot: Bot, user: dict) -> None:
-    """Foydalanuvchining kechki so'rov vaqtiga cron qo'yadi (idempotent)."""
-    if not user.get("evening_enabled"):
-        unschedule_evening(user["id"])
-        return
-    hour = user.get("evening_hour")
-    minute = user.get("evening_minute")
-    scheduler.add_job(
-        send_evening_prompt,
-        CronTrigger(hour=21 if hour is None else hour,
-                    minute=0 if minute is None else minute,
-                    timezone=TZ),
-        args=[bot, user["id"]],
-        id=f"evening_{user['id']}",
-        replace_existing=True,
-        misfire_grace_time=3600,
-    )
-
-
-def unschedule_evening(user_db_id: int) -> None:
-    job = scheduler.get_job(f"evening_{user_db_id}")
-    if job:
-        job.remove()
-
-
-async def load_all_evenings(bot: Bot) -> int:
-    users = await db.get_users_for_evening()
-    for user in users:
-        schedule_evening(bot, user)
-    logger.info("%d ta kechki so'rov jadvalga yuklandi", len(users))
     return len(users)
