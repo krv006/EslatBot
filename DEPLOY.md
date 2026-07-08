@@ -6,10 +6,13 @@ Butun tizim 3 ta konteynerda ishlaydi:
 |---|---|
 | `eslatbot_bot` | Telegram bot (aiogram) |
 | `eslatbot_adminka` | Django admin panel (gunicorn) |
-| `eslatbot_nginx` | Tashqi kirish nuqtasi — 80-port |
+| `eslatbot_caddy` | Kirish nuqtasi — **HTTPS avtomatik** (Let's Encrypt) |
 
-Baza (SQLite) `bot_data` nomli docker volume'da saqlanadi — konteynerlarni
-o'chirib qayta ko'tarsangiz ham ma'lumotlar yo'qolmaydi.
+Baza (SQLite) `bot_data` docker volume'da — konteynerlarni qayta
+ko'tarsangiz ham ma'lumotlar yo'qolmaydi.
+
+Domen: **eslat.thesofmebel.uz** → serverning IP'siga A-yozuv qo'yilgan
+bo'lishi kerak (DNS'da allaqachon qilingan).
 
 ## Serverda birinchi marta ishga tushirish
 
@@ -18,36 +21,54 @@ o'chirib qayta ko'tarsangiz ham ma'lumotlar yo'qolmaydi.
 curl -fsSL https://get.docker.com | sh
 
 # 2. Loyihani yuklab olish
-git clone <REPO_MANZILI> eslatbot
+git clone https://github.com/krv006/EslatBot.git eslatbot
 cd eslatbot
 
 # 3. Sozlamalar faylini yaratish
 cp .env.example .env
-nano .env        # BOT_TOKEN, DJANGO_SECRET_KEY, DJANGO_SUPERUSER_PASSWORD ni yozing!
+nano .env
+```
 
+`.env` da to'ldirish shart bo'lganlar:
+
+```
+BOT_TOKEN=            # BotFather'dan (yangisini oling!)
+MOHIR_API_KEY=        # uzbekvoice.ai
+GEMINI_API_KEY=       # Google AI Studio
+DOMAIN=eslat.thesofmebel.uz
+DJANGO_SECRET_KEY=    # python -c "import secrets; print(secrets.token_urlsafe(50))"
+DJANGO_ALLOWED_HOSTS=eslat.thesofmebel.uz
+DJANGO_CSRF_TRUSTED_ORIGINS=https://eslat.thesofmebel.uz
+DJANGO_HTTPS=1
+DJANGO_SUPERUSER_USERNAME=   # o'zingiz tanlang
+DJANGO_SUPERUSER_PASSWORD=   # KUCHLI parol!
+```
+
+```bash
 # 4. BITTA BUYRUQ — hammasi ko'tariladi 🚀
 docker compose up -d --build
 ```
 
-Tayyor! Endi:
-- Bot Telegram'da ishlayapti
-- Adminka: `http://SERVER_IP/admin/` (login/parol — .env dagi DJANGO_SUPERUSER_*)
+Tayyor! 1-2 daqiqada Caddy sertifikat oladi va:
+- Bot Telegram'da ishlaydi
+- Adminka: **https://eslat.thesofmebel.uz/admin/**
 
 ## Kundalik buyruqlar
 
 ```bash
-docker compose ps                  # holatni ko'rish
+docker compose ps                  # holat
 docker compose logs -f bot         # bot loglari (jonli)
 docker compose logs -f adminka     # adminka loglari
+docker compose logs -f caddy       # HTTPS/sertifikat loglari
 docker compose restart bot         # faqat botni qayta yuklash
-docker compose down                # hammasini to'xtatish (baza saqlanadi)
+docker compose down                # to'xtatish (baza saqlanadi)
 ```
 
-## Yangi kod chiqarish (yangilash)
+## Yangi kod chiqarish
 
 ```bash
 git pull
-docker compose up -d --build       # o'zgargan qismini o'zi qayta quradi
+docker compose up -d --build
 ```
 
 ## Bazani zaxiralash (backup)
@@ -56,12 +77,10 @@ docker compose up -d --build       # o'zgargan qismini o'zi qayta quradi
 docker compose cp bot:/app/data/eslatbot.db ./backup_$(date +%F).db
 ```
 
-## Domen va HTTPS (ixtiyoriy, keyinroq)
+## Muammolar
 
-Domen ulasangiz `.env` da:
-```
-DJANGO_ALLOWED_HOSTS=bot.example.uz
-DJANGO_CSRF_TRUSTED_ORIGINS=https://bot.example.uz
-```
-HTTPS uchun eng oson yo'l — nginx o'rniga [Caddy](https://caddyserver.com)
-ishlatish yoki serverda `certbot` bilan sertifikat olish.
+- **Sertifikat olinmayapti** — DNS tarqalishini tekshiring:
+  `nslookup eslat.thesofmebel.uz` server IP'sini qaytarishi kerak.
+  80 va 443 portlar ochiq bo'lishi shart (firewall/UFW).
+- **Adminka CSRF xatosi** — `.env`da `DJANGO_CSRF_TRUSTED_ORIGINS`
+  domen bilan `https://` prefiksida yozilganini tekshiring.

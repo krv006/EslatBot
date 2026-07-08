@@ -1,0 +1,21 @@
+# DOMAIN .env da berilsa (masalan eslat.thesofmebel.uz) — Caddy avtomatik
+# HTTPS sertifikat oladi va yangilab turadi. Berilmasa — oddiy :80 (lokal).
+{$DOMAIN} {
+	encode gzip
+
+	header {
+		X-Content-Type-Options nosniff
+		X-Frame-Options DENY
+		Referrer-Policy same-origin
+		-Server
+	}
+
+	# Django admin static fayllari
+	handle_path /static/* {
+		root * /static
+		file_server
+	}
+
+	# Qolgan hamma so'rov — Django adminka'ga
+	reverse_proxy adminka:8000
+}
