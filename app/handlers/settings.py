@@ -26,8 +26,8 @@ def _settings_text(user: dict) -> str:
         "⚙️ <b>Sozlamalar</b>\n\n"
         "🌅 <b>Ertalabki kun rejasi</b>\n"
         f"Holati: {status}\n\n"
-        "<i>Bot har kuni ertalab bugungi barcha rejalaringizni "
-        "bitta xabarda yuboradi. Rejasiz kunlarda bezovta qilmaydi.</i>"
+        "<i>Bot har kuni ertalab sizga xayrli tong tilab, bugungi barcha "
+        "rejalaringizni bitta xabarda yuboradi.</i>"
     )
 
 

@@ -1,5 +1,6 @@
 """APScheduler — eslatmalarni belgilangan vaqtda yuborish."""
 import logging
+import random
 from datetime import datetime, timedelta
 from zoneinfo import ZoneInfo
 
@@ -121,8 +122,28 @@ def is_today_reminder(rem: dict, today) -> bool:
     return False
 
 
-def build_digest_text(name: str, reminders: list[dict]) -> str:
-    """Kun rejasi matnini tuzadi. Eslatmalar vaqt bo'yicha tartiblanadi."""
+MONTH_NAMES = [
+    "yanvar", "fevral", "mart", "aprel", "may", "iyun",
+    "iyul", "avgust", "sentyabr", "oktyabr", "noyabr", "dekabr",
+]
+
+WEEKDAY_NAMES_LOW = [
+    "dushanba", "seshanba", "chorshanba", "payshanba",
+    "juma", "shanba", "yakshanba",
+]
+
+# Rejasiz kunlar uchun har xil iliq xabarlar (zerikarli bo'lmasligi uchun)
+EMPTY_DAY_MESSAGES = [
+    "Bugun rejalaringiz yo'q — kun to'liq sizniki! 😌",
+    "Bugun bo'sh kun — yaqinlaringizga vaqt ajrating! ❤️",
+    "Bugunga hech narsa yozilmagan. Balki yangi maqsad qo'yish vaqtidir? 🎯",
+    "Rejasiz kun — dam olish ham muhim ish! ☕️",
+    "Bugun erkin kunsiz. Alloh bergan kundan unumli foydalaning! 🌿",
+    "Bugun jadval bo'sh — o'zingiz uchun bir yaxshilik qiling! ✨",
+]
+
+
+def _greeting_and_date() -> tuple[str, str]:
     now = datetime.now(TZ)
     if now.hour < 12:
         greeting = "☀️ Xayrli tong"
@@ -130,9 +151,16 @@ def build_digest_text(name: str, reminders: list[dict]) -> str:
         greeting = "🌤 Xayrli kun"
     else:
         greeting = "🌙 Xayrli kech"
+    date_line = (f"📅 Bugun {now.day}-{MONTH_NAMES[now.month - 1]}, "
+                 f"{WEEKDAY_NAMES_LOW[now.weekday()]}")
+    return greeting, date_line
 
+
+def build_digest_text(name: str, reminders: list[dict]) -> str:
+    """Kun rejasi matnini tuzadi. Eslatmalar vaqt bo'yicha tartiblanadi."""
+    greeting, date_line = _greeting_and_date()
     count = len(reminders)
-    lines = [f"{greeting}, <b>{name}</b>!\n"]
+    lines = [f"{greeting}, <b>{name}</b>!", date_line, ""]
     lines.append(f"Bugun sizda <b>{count} ta</b> reja bor:\n")
     for rem in sorted(reminders, key=lambda r: (r["hour"], r["minute"])):
         lines.append(f"🕒 <b>{rem['hour']:02d}:{rem['minute']:02d}</b> — {rem['text']}")
@@ -140,10 +168,17 @@ def build_digest_text(name: str, reminders: list[dict]) -> str:
     return "\n".join(lines)
 
 
+def build_empty_digest_text(name: str) -> str:
+    """Rejasiz kun uchun iliq salomlashuv."""
+    greeting, date_line = _greeting_and_date()
+    return (f"{greeting}, <b>{name}</b>!\n{date_line}\n\n"
+            f"{random.choice(EMPTY_DAY_MESSAGES)}")
+
+
 async def send_digest(bot: Bot, user_db_id: int) -> None:
     """Bitta foydalanuvchiga bugungi kun rejasini yuboradi.
 
-    Bugunga reja bo'lmasa — indamaydi (bekorga bezovta qilmaslik uchun).
+    Reja bo'lsa — ro'yxat bilan, bo'lmasa — shunchaki iliq salomlashuv.
     """
     user = await db.get_user_by_id(user_db_id)
     if not user or not user.get("digest_enabled"):
@@ -151,13 +186,10 @@ async def send_digest(bot: Bot, user_db_id: int) -> None:
     reminders = await db.get_active_reminders_for_user(user_db_id)
     today = datetime.now(TZ).date()
     todays = [r for r in reminders if is_today_reminder(r, today)]
-    if not todays:
-        return
+    name = user.get("name") or "do'stim"
+    text = build_digest_text(name, todays) if todays else build_empty_digest_text(name)
     try:
-        await bot.send_message(
-            user["tg_id"],
-            build_digest_text(user.get("name") or "do'stim", todays),
-        )
+        await bot.send_message(user["tg_id"], text)
     except Exception:
         logger.exception("Digest yuborilmadi: user_db_id=%s", user_db_id)
 
