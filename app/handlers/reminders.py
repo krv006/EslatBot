@@ -185,6 +185,41 @@ async def got_time(message: Message, state: FSMContext):
     await ask_next(message, state)
 
 
+# --- Ovozli xabar: matnga aylantirib, xuddi yozilgandek qayta ishlaymiz ---
+
+@router.message(F.voice)
+async def voice_message(message: Message, state: FSMContext):
+    from app.utils.stt import stt_available, transcribe_voice
+
+    if not stt_available():
+        await message.answer(
+            "Ovozli xabarlarni hozircha tushunmayman 😅 Iltimos, yozib yuboring."
+        )
+        return
+
+    # Ro'yxatdan o'tish kabi boshqa bosqichlarda ovoz qabul qilmaymiz
+    current = await state.get_state()
+    if current is not None and not current.startswith("NewReminder"):
+        await message.answer("Iltimos, bu bosqichda yozib javob bering 😊")
+        return
+
+    if message.voice.duration > 120:
+        await message.answer(
+            "Ovozli xabar juda uzun (2 daqiqagacha qabul qilaman) 😅"
+        )
+        return
+
+    wait_msg = await message.answer("🎙 Eshityapman...")
+    text = await transcribe_voice(message.bot, message.voice.file_id)
+    if not text:
+        await wait_msg.edit_text(
+            "Ovozni tushuna olmadim 😔 Qaytadan urinib ko'ring yoki yozib yuboring."
+        )
+        return
+    await wait_msg.edit_text(f"🎙 Eshitdim: <i>«{text}»</i>")
+    await _handle_parsed(message, state, text)
+
+
 # --- Erkin matn (menyu tashqarisida yozilgan har qanday xabar) ---
 # DIQQAT: bu handler routerlar ro'yxatida oxirida turishi kerak.
 

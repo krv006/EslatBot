@@ -26,6 +26,7 @@ HELP_TEXT = (
     "   • <i>kun ora 21:30 kitob o'qish</i>\n"
     "   • <i>har juma 10 da mashg'ulot</i>\n"
     "   • <i>har oyning 15-kuni 9:00 kvartira puli</i>\n\n"
+    "🎙 Yozishga erinsangiz — <b>ovozli xabar</b> yuboring, o'zim tushunaman!\n\n"
     "📝 <b>Kunlik reja</b> — bugun/ertaga uchun bir nechta rejani "
     "birdan qatorlab yozasiz.\n"
     "📋 <b>Eslatmalarim</b> — ro'yxatni ko'rish, to'xtatish yoki o'chirish."

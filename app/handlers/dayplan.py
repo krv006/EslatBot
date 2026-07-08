@@ -78,15 +78,37 @@ async def plan_done(message: Message, state: FSMContext):
         await message.answer("Reja qo'shilmadi.", reply_markup=main_menu)
 
 
+@router.message(DayPlan.items, F.voice)
+async def plan_items_voice(message: Message, state: FSMContext):
+    from app.utils.stt import stt_available, transcribe_voice
+
+    if not stt_available():
+        await message.answer("Iltimos, rejalarni yozib yuboring 😊")
+        return
+    wait_msg = await message.answer("🎙 Eshityapman...")
+    text = await transcribe_voice(message.bot, message.voice.file_id)
+    if not text:
+        await wait_msg.edit_text(
+            "Ovozni tushuna olmadim 😔 Qaytadan urinib ko'ring yoki yozib yuboring."
+        )
+        return
+    await wait_msg.edit_text(f"🎙 Eshitdim: <i>«{text}»</i>")
+    await _process_plan_text(message, state, text)
+
+
 @router.message(DayPlan.items, F.text)
 async def plan_items(message: Message, state: FSMContext):
+    await _process_plan_text(message, state, message.text)
+
+
+async def _process_plan_text(message: Message, state: FSMContext, raw: str):
     data = await state.get_data()
     offset = data.get("day_offset", 1)
     user_db_id = await db.upsert_user(message.from_user)
     now = datetime.now(TZ)
     added, failed, passed = [], [], []
 
-    for line in message.text.splitlines():
+    for line in raw.splitlines():
         line = line.strip()
         if not line:
             continue
