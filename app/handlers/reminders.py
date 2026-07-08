@@ -217,7 +217,11 @@ async def voice_message(message: Message, state: FSMContext):
         )
         return
     await wait_msg.edit_text(f"🎙 Eshitdim: <i>«{text}»</i>")
-    await _handle_parsed(message, state, text)
+
+    # AI (Gemini) bilan chuqur tahlil; ishlamasa oddiy regex'ga o'tadi
+    from app.utils.ai import ai_available, ai_parse_reminder
+    parsed = await ai_parse_reminder(text) if ai_available() else None
+    await _handle_parsed(message, state, text, parsed=parsed)
 
 
 # --- Erkin matn (menyu tashqarisida yozilgan har qanday xabar) ---
@@ -228,10 +232,12 @@ async def free_text(message: Message, state: FSMContext):
     await _handle_parsed(message, state, message.text)
 
 
-async def _handle_parsed(message: Message, state: FSMContext, raw: str):
-    """Matnni parser orqali o'tkazib, yetishmagan qismlarini so'raydi."""
+async def _handle_parsed(message: Message, state: FSMContext, raw: str,
+                         parsed: dict | None = None):
+    """Matnni tahlil qilib (AI yoki regex), yetishmagan qismlarini so'raydi."""
     user_db_id = await db.upsert_user(message.from_user)
-    parsed = parse_text(raw)
+    if parsed is None:
+        parsed = parse_text(raw)
     text = parsed["text"] or raw.strip()
     await state.update_data(
         user_db_id=user_db_id,
