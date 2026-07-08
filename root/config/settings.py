@@ -48,13 +48,14 @@ if os.getenv("DJANGO_HTTPS", "0") == "1":
     SECURE_PROXY_SSL_HEADER = ("HTTP_X_FORWARDED_PROTO", "https")
 
 INSTALLED_APPS = [
+    # panel birinchi — admin shablonlarini (favicon, branding) almashtirish uchun
+    "panel",
     "django.contrib.admin",
     "django.contrib.auth",
     "django.contrib.contenttypes",
     "django.contrib.sessions",
     "django.contrib.messages",
     "django.contrib.staticfiles",
-    "panel",
 ]
 
 MIDDLEWARE = [
