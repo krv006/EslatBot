@@ -3,7 +3,8 @@
 Misollar:
     "har kuni soat 8 da dori ichishni eslat"  -> daily, 08:00, "dori ichish"
     "kun ora 21:30 kitob o'qish"              -> every2, 21:30, "kitob o'qish"
-    "juma kuni 10 da suzishga borish"          -> weekly(juma), 10:00
+    "juma kuni 10 da suzishga borish"          -> once(eng yaqin juma), 10:00
+    "har juma 10 da suzishga borish"           -> weekly(juma), 10:00
     "har oyning 15-kuni 9:00 kvartira puli"    -> monthly(15), 09:00
 """
 import re
@@ -167,6 +168,7 @@ def parse_text(raw: str) -> dict:
         "hour": None,
         "minute": None,
         "once_offset": None,  # 0=bugun, 1=ertaga, 2=indinga
+        "once_weekday": None,  # 0-6 — bir martalik, eng yaqin shu hafta kuni
     }
     text = " " + _normalize(raw.strip()) + " "
     low = text.lower()
@@ -199,13 +201,17 @@ def parse_text(raw: str) -> dict:
             text = text[:m.start()] + " " + text[m.end():]
             low = text.lower()
 
-    # Hafta kuni nomi (masalan "juma kuni" yoki "har juma")
+    # Hafta kuni nomi: "har juma" = takroriy, "juma kuni" = bir martalik (eng yaqin juma)
     if result["freq"] is None:
         for name, idx in WEEKDAYS.items():
-            m = re.search(rf"\b(har\s+)?{name}(\s+kuni)?\b", low)
+            m = re.search(rf"\b(?P<har>har\s+)?(?:keyingi\s+)?{name}(\s+kuni)?\b", low)
             if m:
-                result["freq"] = "weekly"
-                result["weekday"] = idx
+                if m.group("har"):
+                    result["freq"] = "weekly"
+                    result["weekday"] = idx
+                else:
+                    result["freq"] = "once"
+                    result["once_weekday"] = idx
                 text = text[:m.start()] + " " + text[m.end():]
                 low = text.lower()
                 break

@@ -19,6 +19,7 @@ from app.keyboards.keyboards import (
 from app.scheduler.scheduler import (
     TZ,
     first_run_date,
+    next_weekday_run_date,
     once_run_date,
     schedule_digest,
     schedule_reminder,
@@ -46,7 +47,8 @@ async def ask_next(message: Message, state: FSMContext):
     if data.get("freq") is None:
         await state.set_state(NewReminder.freq)
         await message.answer("Qanchalik tez-tez eslatay? 👇", reply_markup=freq_kb)
-    elif data["freq"] == "once" and data.get("once_offset") is None:
+    elif (data["freq"] == "once" and data.get("once_offset") is None
+          and data.get("once_weekday") is None):
         await state.set_state(NewReminder.once_day)
         await message.answer("Qaysi kunga? 👇", reply_markup=once_day_kb)
     elif data["freq"] == "weekly" and data.get("weekday") is None:
@@ -68,7 +70,11 @@ async def finalize(message: Message, state: FSMContext):
 
     start_date = None
     if data["freq"] == "once":
-        dt = once_run_date(data.get("once_offset") or 0, data["hour"], data["minute"])
+        if data.get("once_weekday") is not None:
+            # "dushanba kuni 10 da" — eng yaqin keladigan dushanba, o'tib ketmaydi
+            dt = next_weekday_run_date(data["once_weekday"], data["hour"], data["minute"])
+        else:
+            dt = once_run_date(data.get("once_offset") or 0, data["hour"], data["minute"])
         if dt <= datetime.now(TZ):
             # "Bugun"ga tanlangan vaqt allaqachon o'tib ketgan
             await state.set_state(NewReminder.time_)
@@ -250,9 +256,11 @@ async def _handle_parsed(message: Message, state: FSMContext, raw: str,
         hour=parsed["hour"],
         minute=parsed["minute"],
         once_offset=parsed["once_offset"],
+        once_weekday=parsed.get("once_weekday"),
     )
     found = []
-    if parsed["freq"] == "once" and parsed["once_offset"] is not None:
+    if parsed["freq"] == "once" and (parsed["once_offset"] is not None
+                                     or parsed.get("once_weekday") is not None):
         found.append("kunni")
     elif parsed["freq"]:
         found.append("takrorlanishni")

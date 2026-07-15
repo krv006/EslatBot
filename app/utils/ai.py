@@ -25,6 +25,8 @@ Maydonlar:
 - "text": eslatma matni — nima haqida, qisqa va toza ("eslat", "menga", "iltimos" kabi so'zlarsiz)
 - "freq": "once" | "daily" | "every2" | "weekly" | "monthly" | null (aniqlab bo'lmasa)
 - "once_offset": 0 (bugun) | 1 (ertaga) | 2 (indinga) | null — faqat freq="once" bo'lsa
+- "once_weekday": 0-6 (0=dushanba, 6=yakshanba) | null — freq="once" va aniq hafta kuni \
+aytilganda ("dushanba kuni" — "har"siz)
 - "weekday": 0-6 (0=dushanba, 6=yakshanba) | null — faqat freq="weekly" bo'lsa
 - "monthday": 1-31 | null — faqat freq="monthly" bo'lsa
 - "hour": 0-23 | null
@@ -33,7 +35,9 @@ Maydonlar:
 Qoidalar:
 - "kechqurun sakkizda" = 20:00, "ertalab sakkizda" = 08:00, "tushdan keyin uchda" = 15:00
 - "sakkizu nol nol" = 08:00, "to'qqizu qirq besh" = 09:45, "sakkiz yarim" = 08:30
-- "kun ora" = every2, "har kuni" = daily, hafta kuni nomi = weekly
+- "kun ora" = every2, "har kuni" = daily
+- MUHIM: "har dushanba" = weekly (takroriy), lekin "dushanba kuni" ("har"siz) = \
+once + once_weekday (bir martalik, eng yaqin keladigan shu kun)
 - Aytilmagan narsani taxmin qilma — null qoldir
 - STT xatolarini kontekstdan tuzat
 
@@ -69,6 +73,7 @@ def _validate(data) -> dict | None:
         "text": text,
         "freq": freq,
         "once_offset": _num(data.get("once_offset"), 0, 2) if freq == "once" else None,
+        "once_weekday": _num(data.get("once_weekday"), 0, 6) if freq == "once" else None,
         "weekday": _num(data.get("weekday"), 0, 6) if freq == "weekly" else None,
         "monthday": _num(data.get("monthday"), 1, 31) if freq == "monthly" else None,
         "hour": hour,

@@ -61,6 +61,20 @@ def once_run_date(offset_days: int, hour: int, minute: int) -> datetime:
     )
 
 
+def next_weekday_run_date(weekday: int, hour: int, minute: int) -> datetime:
+    """Eng yaqin keladigan hafta kuni ("dushanba kuni 10 da" — bir martalik).
+
+    Bugun o'sha kun bo'lib vaqti hali o'tmagan bo'lsa — bugun, aks holda
+    keyingi haftadagi shu kun.
+    """
+    now = datetime.now(TZ)
+    target = now.replace(hour=hour, minute=minute, second=0, microsecond=0)
+    days_ahead = (weekday - now.weekday()) % 7
+    if days_ahead == 0 and target <= now:
+        days_ahead = 7
+    return target + timedelta(days=days_ahead)
+
+
 def schedule_reminder(bot: Bot, rem: dict) -> None:
     """Bitta eslatmani jadvalga qo'shadi (bor bo'lsa yangilaydi)."""
     freq = rem["freq"]
