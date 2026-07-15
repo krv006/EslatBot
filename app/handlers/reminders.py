@@ -18,6 +18,7 @@ from app.keyboards.keyboards import (
 )
 from app.scheduler.scheduler import (
     TZ,
+    date_run_date,
     first_run_date,
     next_weekday_run_date,
     once_run_date,
@@ -48,7 +49,7 @@ async def ask_next(message: Message, state: FSMContext):
         await state.set_state(NewReminder.freq)
         await message.answer("Qanchalik tez-tez eslatay? 👇", reply_markup=freq_kb)
     elif (data["freq"] == "once" and data.get("once_offset") is None
-          and data.get("once_weekday") is None):
+          and data.get("once_weekday") is None and data.get("once_date") is None):
         await state.set_state(NewReminder.once_day)
         await message.answer("Qaysi kunga? 👇", reply_markup=once_day_kb)
     elif data["freq"] == "weekly" and data.get("weekday") is None:
@@ -70,7 +71,10 @@ async def finalize(message: Message, state: FSMContext):
 
     start_date = None
     if data["freq"] == "once":
-        if data.get("once_weekday") is not None:
+        if data.get("once_date") is not None:
+            # "20-iyulda 10 da" — aniq sana
+            dt = date_run_date(data["once_date"], data["hour"], data["minute"])
+        elif data.get("once_weekday") is not None:
             # "dushanba kuni 10 da" — eng yaqin keladigan dushanba, o'tib ketmaydi
             dt = next_weekday_run_date(data["once_weekday"], data["hour"], data["minute"])
         else:
@@ -257,10 +261,12 @@ async def _handle_parsed(message: Message, state: FSMContext, raw: str,
         minute=parsed["minute"],
         once_offset=parsed["once_offset"],
         once_weekday=parsed.get("once_weekday"),
+        once_date=parsed.get("once_date"),
     )
     found = []
     if parsed["freq"] == "once" and (parsed["once_offset"] is not None
-                                     or parsed.get("once_weekday") is not None):
+                                     or parsed.get("once_weekday") is not None
+                                     or parsed.get("once_date") is not None):
         found.append("kunni")
     elif parsed["freq"]:
         found.append("takrorlanishni")

@@ -6,6 +6,7 @@ Gemini undan toza eslatma strukturasini chiqaradi. AI ishlamay qolsa
 """
 import json
 import logging
+from datetime import date
 
 import aiohttp
 
@@ -27,6 +28,8 @@ Maydonlar:
 - "once_offset": 0 (bugun) | 1 (ertaga) | 2 (indinga) | null — faqat freq="once" bo'lsa
 - "once_weekday": 0-6 (0=dushanba, 6=yakshanba) | null — freq="once" va aniq hafta kuni \
 aytilganda ("dushanba kuni" — "har"siz)
+- "once_date": "YYYY-MM-DD" | null — freq="once" va aniq sana aytilganda \
+("20-iyul", "3 kundan keyin", "2 haftadan keyin"). Bugungi sanaga nisbatan hisobla
 - "weekday": 0-6 (0=dushanba, 6=yakshanba) | null — faqat freq="weekly" bo'lsa
 - "monthday": 1-31 | null — faqat freq="monthly" bo'lsa
 - "hour": 0-23 | null
@@ -41,6 +44,7 @@ once + once_weekday (bir martalik, eng yaqin keladigan shu kun)
 - Aytilmagan narsani taxmin qilma — null qoldir
 - STT xatolarini kontekstdan tuzat
 
+Bugungi sana: {today}
 So'rov: {input}"""
 
 
@@ -50,6 +54,16 @@ def ai_available() -> bool:
 
 def _num(value, lo: int, hi: int) -> int | None:
     return value if isinstance(value, int) and lo <= value <= hi else None
+
+
+def _iso_date(value) -> str | None:
+    """'YYYY-MM-DD' formatidagi to'g'ri sanani qaytaradi, aks holda None."""
+    if not isinstance(value, str):
+        return None
+    try:
+        return date.fromisoformat(value).isoformat()
+    except ValueError:
+        return None
 
 
 def _validate(data) -> dict | None:
@@ -74,6 +88,7 @@ def _validate(data) -> dict | None:
         "freq": freq,
         "once_offset": _num(data.get("once_offset"), 0, 2) if freq == "once" else None,
         "once_weekday": _num(data.get("once_weekday"), 0, 6) if freq == "once" else None,
+        "once_date": _iso_date(data.get("once_date")) if freq == "once" else None,
         "weekday": _num(data.get("weekday"), 0, 6) if freq == "weekly" else None,
         "monthday": _num(data.get("monthday"), 1, 31) if freq == "monthly" else None,
         "hour": hour,
@@ -85,8 +100,9 @@ async def ai_parse_reminder(raw: str) -> dict | None:
     """Xom matnni Gemini orqali tahlil qiladi. Xatoda None (fallback: regex)."""
     if not ai_available():
         return None
+    prompt = PROMPT.replace("{today}", date.today().isoformat()).replace("{input}", raw)
     body = {
-        "contents": [{"parts": [{"text": PROMPT.replace("{input}", raw)}]}],
+        "contents": [{"parts": [{"text": prompt}]}],
         "generationConfig": {
             "temperature": 0,
             "response_mime_type": "application/json",

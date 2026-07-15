@@ -8,7 +8,8 @@ Misollar:
     "har oyning 15-kuni 9:00 kvartira puli"    -> monthly(15), 09:00
 """
 import re
-from datetime import datetime
+from calendar import monthrange
+from datetime import date, datetime, timedelta
 
 WEEKDAYS = {
     "dushanba": 0,
@@ -151,6 +152,61 @@ def _find_time(low: str) -> tuple[int, int, int, int] | None:
     return None
 
 
+# --- Aniq sana ---
+# So'z bilan aytilgan kichik sonlar ("uch kundan keyin")
+_REL_WORDS = {**_NUM_UNITS, "o'n": 10}
+_REL_NUM = r"(?:\d{1,2}|o'n|to'qqiz|sakkiz|yetti|olti|besh|to'rt|uch|ikki|bir)"
+
+# "3 kundan keyin", "ikki haftadan keyin", "1 oydan keyin"
+_REL_DATE_RE = re.compile(
+    rf"\b(?P<n>{_REL_NUM})\s+(?P<unit>kun|hafta|oy)dan\s+keyin\b"
+)
+# "20-iyul", "20 iyul kuni", "5-may da"
+_ABS_DATE_RE = re.compile(
+    rf"\b(?P<d>\d{{1,2}})\s*-?\s*(?P<mon>{'|'.join(MONTH_NAMES)})(?:da|\s+kuni)?\b"
+)
+
+
+def _add_months(d: date, n: int) -> date:
+    m = d.month - 1 + n
+    y = d.year + m // 12
+    m = m % 12 + 1
+    return date(y, m, min(d.day, monthrange(y, m)[1]))
+
+
+def _find_once_date(low: str) -> tuple[str, int, int] | None:
+    """Matndan aniq sana topadi: (ISO 'YYYY-MM-DD', boshi, oxiri) yoki None."""
+    today = date.today()
+
+    m = _REL_DATE_RE.search(low)
+    if m:
+        raw_n = m.group("n")
+        n = int(raw_n) if raw_n.isdigit() else _REL_WORDS.get(raw_n)
+        if n:
+            unit = m.group("unit")
+            if unit == "kun":
+                target = today + timedelta(days=n)
+            elif unit == "hafta":
+                target = today + timedelta(weeks=n)
+            else:  # oy
+                target = _add_months(today, n)
+            return target.isoformat(), m.start(), m.end()
+
+    m = _ABS_DATE_RE.search(low)
+    if m:
+        day = int(m.group("d"))
+        month = MONTH_NAMES.index(m.group("mon")) + 1
+        try:
+            target = date(today.year, month, day)
+        except ValueError:
+            return None
+        if target < today:  # yil o'tib ketgan bo'lsa — keyingi yil
+            target = date(today.year + 1, month, day)
+        return target.isoformat(), m.start(), m.end()
+
+    return None
+
+
 # Kun bo'lagi: "kechqurun sakkizda" -> 20:00
 _EVENING_WORDS = ("kechqurun", "kechasi", "tushdan keyin", "peshindan keyin")
 _PERIOD_RE = re.compile(
@@ -169,6 +225,7 @@ def parse_text(raw: str) -> dict:
         "minute": None,
         "once_offset": None,  # 0=bugun, 1=ertaga, 2=indinga
         "once_weekday": None,  # 0-6 — bir martalik, eng yaqin shu hafta kuni
+        "once_date": None,  # 'YYYY-MM-DD' — aniq sana ("20-iyul", "3 kundan keyin")
     }
     text = " " + _normalize(raw.strip()) + " "
     low = text.lower()
@@ -186,6 +243,16 @@ def parse_text(raw: str) -> dict:
             result["once_offset"] = 2
         text = text[:m.start()] + " " + text[m.end():]
         low = text.lower()
+
+    # --- Aniq sana: "20-iyul", "3 kundan keyin", "2 haftadan keyin" ---
+    if result["freq"] is None:
+        found_date = _find_once_date(low)
+        if found_date:
+            iso, start, end = found_date
+            result["freq"] = "once"
+            result["once_date"] = iso
+            text = text[:start] + " " + text[end:]
+            low = text.lower()
 
     # --- Takrorlanish turi ---
     m = re.search(r"\bkun\s*ora\b|\bkunora\b|\bhar\s+2\s+kun(da)?\b", low)

@@ -61,6 +61,12 @@ def once_run_date(offset_days: int, hour: int, minute: int) -> datetime:
     )
 
 
+def date_run_date(iso_date: str, hour: int, minute: int) -> datetime:
+    """Aniq sanaga ('YYYY-MM-DD') bir martalik eslatma vaqti, soat hh:mm."""
+    d = datetime.fromisoformat(iso_date)
+    return d.replace(hour=hour, minute=minute, second=0, microsecond=0, tzinfo=TZ)
+
+
 def next_weekday_run_date(weekday: int, hour: int, minute: int) -> datetime:
     """Eng yaqin keladigan hafta kuni ("dushanba kuni 10 da" — bir martalik).
 
