@@ -120,6 +120,52 @@ def reminder_manage_kb(reminder_id: int, is_active: bool) -> InlineKeyboardMarku
     )
     return InlineKeyboardMarkup(
         inline_keyboard=[
-            [toggle, InlineKeyboardButton(text="🗑 O'chirish", callback_data=f"del:{reminder_id}")]
+            [InlineKeyboardButton(text="✏️ Tahrirlash", callback_data=f"edit:{reminder_id}")],
+            [toggle, InlineKeyboardButton(text="🗑 O'chirish", callback_data=f"del:{reminder_id}")],
         ]
     )
+
+
+def edit_menu_kb(reminder_id: int) -> InlineKeyboardMarkup:
+    """«Tahrirlash» bosilganda: nimani o'zgartirishni tanlash."""
+    return InlineKeyboardMarkup(
+        inline_keyboard=[
+            [
+                InlineKeyboardButton(text="📝 Matn", callback_data=f"e_text:{reminder_id}"),
+                InlineKeyboardButton(text="🕒 Vaqt", callback_data=f"e_time:{reminder_id}"),
+                InlineKeyboardButton(text="🔁 Takror", callback_data=f"e_freq:{reminder_id}"),
+            ],
+            [InlineKeyboardButton(text="⬅️ Orqaga", callback_data=f"e_back:{reminder_id}")],
+        ]
+    )
+
+
+# Tahrirlashda takrorlanish turini tanlash (yangi eslatmadagi freq_kb'ning aynan o'zi)
+edit_freq_kb = InlineKeyboardMarkup(
+    inline_keyboard=[
+        [InlineKeyboardButton(text="📌 Bir marta", callback_data="ef:once")],
+        [InlineKeyboardButton(text="📅 Har kuni", callback_data="ef:daily")],
+        [InlineKeyboardButton(text="🔁 Kun ora", callback_data="ef:every2")],
+        [InlineKeyboardButton(text="📆 Haftada bir", callback_data="ef:weekly")],
+        [InlineKeyboardButton(text="🗓 Oyda bir", callback_data="ef:monthly")],
+    ]
+)
+
+edit_once_day_kb = InlineKeyboardMarkup(
+    inline_keyboard=[
+        [
+            InlineKeyboardButton(text="📍 Bugun", callback_data="eod:0"),
+            InlineKeyboardButton(text="🌅 Ertaga", callback_data="eod:1"),
+            InlineKeyboardButton(text="⏩ Indinga", callback_data="eod:2"),
+        ]
+    ]
+)
+
+edit_weekday_kb = InlineKeyboardMarkup(
+    inline_keyboard=[
+        [InlineKeyboardButton(text=WEEKDAY_NAMES[i], callback_data=f"ewd:{i}")
+         for i in range(0, 4)],
+        [InlineKeyboardButton(text=WEEKDAY_NAMES[i], callback_data=f"ewd:{i}")
+         for i in range(4, 7)],
+    ]
+)

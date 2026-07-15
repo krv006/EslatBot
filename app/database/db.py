@@ -192,6 +192,19 @@ async def add_reminder(
         return cur.lastrowid
 
 
+async def update_reminder(reminder_id: int, **fields) -> None:
+    """Eslatmaning berilgan ustunlarini yangilaydi (faqat kalitlar ichki, xavfsiz)."""
+    allowed = {"text", "freq", "weekday", "monthday", "hour", "minute", "start_date"}
+    fields = {k: v for k, v in fields.items() if k in allowed}
+    if not fields:
+        return
+    cols = ", ".join(f"{k} = ?" for k in fields)
+    vals = list(fields.values()) + [reminder_id]
+    async with aiosqlite.connect(DB_PATH) as conn:
+        await conn.execute(f"UPDATE reminders SET {cols} WHERE id = ?", vals)
+        await conn.commit()
+
+
 async def get_reminder(reminder_id: int) -> dict | None:
     async with aiosqlite.connect(DB_PATH) as conn:
         conn.row_factory = aiosqlite.Row
