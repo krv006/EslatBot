@@ -1,12 +1,16 @@
 """Eslatmalar ro'yxati: ko'rish, to'xtatish/yoqish, o'chirish, bajarildi/snooze."""
+from datetime import datetime, timedelta
+
 from aiogram import F, Router
 from aiogram.types import CallbackQuery, Message
 
 from app.database import db
 from app.keyboards.keyboards import BTN_LIST, reminder_manage_kb
 from app.scheduler.scheduler import (
+    TZ,
     schedule_reminder,
     schedule_snooze,
+    schedule_snooze_at,
     unschedule_reminder,
 )
 from app.utils.fmt import esc
@@ -77,10 +81,42 @@ async def done_reminder(callback: CallbackQuery):
     await callback.answer("Barakalla! 💪")
 
 
+_SNOOZE_LABELS = {10: "10 daqiqa", 30: "30 daqiqa", 60: "1 soat"}
+
+
+@router.callback_query(F.data.startswith("snz:"))
+async def snooze_flexible(callback: CallbackQuery):
+    _, rid, val = callback.data.split(":")
+    rid = int(rid)
+    rem = await db.get_reminder(rid)
+    # Bir martalik eslatma yuborilgach o'chadi — snooze uchun qayta yoqamiz
+    if rem and rem["freq"] == "once" and not rem["is_active"]:
+        await db.set_reminder_active(rid, True)
+
+    if val == "tomorrow":
+        h = rem["hour"] if rem else 9
+        m = rem["minute"] if rem else 0
+        run = (datetime.now(TZ) + timedelta(days=1)).replace(
+            hour=h, minute=m, second=0, microsecond=0
+        )
+        schedule_snooze_at(callback.bot, rid, run)
+        note = f"🌅 Ertaga soat {h:02d}:{m:02d} da yana eslataman."
+        toast = "Ertaga eslataman 🌅"
+    else:
+        minutes = int(val)
+        schedule_snooze(callback.bot, rid, minutes=minutes)
+        label = _SNOOZE_LABELS.get(minutes, f"{minutes} daqiqa")
+        note = f"⏰ {label}dan keyin yana eslataman."
+        toast = f"{label}ga qoldirildi"
+
+    await callback.message.edit_text(callback.message.html_text + f"\n\n<i>{note}</i>")
+    await callback.answer(toast)
+
+
 @router.callback_query(F.data.startswith("snooze:"))
 async def snooze_reminder(callback: CallbackQuery):
+    """Eski (deploydan oldin yuborilgan) xabarlardagi "+10 daqiqa" tugmasi uchun."""
     rid = int(callback.data.split(":")[1])
-    # Bir martalik eslatma yuborilgach o'chadi — snooze uchun qayta yoqamiz
     rem = await db.get_reminder(rid)
     if rem and rem["freq"] == "once" and not rem["is_active"]:
         await db.set_reminder_active(rid, True)

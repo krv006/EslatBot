@@ -129,6 +129,16 @@ def schedule_snooze(bot: Bot, reminder_id: int, minutes: int = 10) -> None:
     )
 
 
+def schedule_snooze_at(bot: Bot, reminder_id: int, run_date: datetime) -> None:
+    """Aniq vaqtga "keyinroq eslat" (masalan "ertaga soat 9 da")."""
+    scheduler.add_job(
+        send_reminder,
+        "date",
+        run_date=run_date,
+        args=[bot, reminder_id],
+    )
+
+
 async def load_all_reminders(bot: Bot) -> int:
     """Bot qayta ishga tushganda bazadagi barcha faol eslatmalarni jadvalga qaytaradi."""
     reminders = await db.get_all_active_reminders()

@@ -101,13 +101,16 @@ weekday_kb = InlineKeyboardMarkup(
 
 
 def reminder_fired_kb(reminder_id: int) -> InlineKeyboardMarkup:
-    """Eslatma kelganda chiqadigan tugmalar."""
+    """Eslatma kelganda chiqadigan tugmalar: bajarildi + moslashuvchan snooze."""
     return InlineKeyboardMarkup(
         inline_keyboard=[
+            [InlineKeyboardButton(text="✅ Bajarildi", callback_data=f"done:{reminder_id}")],
             [
-                InlineKeyboardButton(text="✅ Bajarildi", callback_data=f"done:{reminder_id}"),
-                InlineKeyboardButton(text="⏰ +10 daqiqa", callback_data=f"snooze:{reminder_id}"),
-            ]
+                InlineKeyboardButton(text="⏰ 10 daq", callback_data=f"snz:{reminder_id}:10"),
+                InlineKeyboardButton(text="⏰ 30 daq", callback_data=f"snz:{reminder_id}:30"),
+                InlineKeyboardButton(text="⏰ 1 soat", callback_data=f"snz:{reminder_id}:60"),
+                InlineKeyboardButton(text="🌅 Ertaga", callback_data=f"snz:{reminder_id}:tomorrow"),
+            ],
         ]
     )
 
