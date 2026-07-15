@@ -5,6 +5,7 @@ import logging
 from aiogram import Bot, Dispatcher
 from aiogram.client.default import DefaultBotProperties
 from aiogram.enums import ParseMode
+from aiogram.types import BotCommand
 
 from app.config import BOT_TOKEN
 from app.database import db
@@ -44,6 +45,14 @@ async def main() -> None:
     scheduler.start()
     await load_all_reminders(bot)
     await load_all_digests(bot)
+
+    await bot.set_my_commands([
+        BotCommand(command="start", description="Boshlash / bosh menyu"),
+        BotCommand(command="new", description="➕ Yangi eslatma"),
+        BotCommand(command="list", description="📋 Eslatmalarim"),
+        BotCommand(command="help", description="❓ Yordam"),
+        BotCommand(command="cancel", description="❌ Amalni bekor qilish"),
+    ])
 
     logger.info("EslatBot ishga tushdi! 🚀")
     await bot.delete_webhook(drop_pending_updates=True)

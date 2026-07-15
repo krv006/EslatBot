@@ -30,7 +30,9 @@ HELP_TEXT = (
     "🎙 Yozishga erinsangiz — <b>ovozli xabar</b> yuboring, o'zim tushunaman!\n\n"
     "📝 <b>Kunlik reja</b> — bugun/ertaga uchun bir nechta rejani "
     "birdan qatorlab yozasiz.\n"
-    "📋 <b>Eslatmalarim</b> — ro'yxatni ko'rish, to'xtatish yoki o'chirish."
+    "📋 <b>Eslatmalarim</b> — ro'yxatni ko'rish, tahrirlash, to'xtatish yoki o'chirish.\n\n"
+    "<b>Komandalar:</b> /new — yangi, /list — ro'yxat, "
+    "/cancel — amalni bekor qilish, /help — shu yordam."
 )
 
 
@@ -64,6 +66,20 @@ async def cmd_start(message: Message, state: FSMContext):
         f"Yozing yoki pastdagi tugmani bosing 👇",
         reply_markup=name_confirm_kb(tg_name),
     )
+
+
+@router.message(Command("cancel"))
+async def cmd_cancel(message: Message, state: FSMContext):
+    """Istalgan bosqichdagi amalni bekor qilib, menyuga qaytaradi."""
+    current = await state.get_state()
+    await state.clear()
+    if current is None:
+        await message.answer("Bekor qiladigan amal yo'q 🙂", reply_markup=main_menu)
+    else:
+        await message.answer(
+            "❌ Bekor qilindi. Bosh menyudasiz — yangi eslatma qo'shishingiz mumkin 👇",
+            reply_markup=main_menu,
+        )
 
 
 @router.message(Registration.name, F.text)

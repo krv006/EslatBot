@@ -2,6 +2,7 @@
 from datetime import datetime, timedelta
 
 from aiogram import F, Router
+from aiogram.filters import Command
 from aiogram.types import CallbackQuery, Message
 
 from app.database import db
@@ -26,6 +27,7 @@ def _format_line(rem: dict) -> str:
     return f"{status} <b>{esc(rem['text'])}</b>\n🕒 {when}"
 
 
+@router.message(Command("list"))
 @router.message(F.text == BTN_LIST)
 async def list_reminders(message: Message):
     reminders = await db.get_user_reminders(message.from_user.id)

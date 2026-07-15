@@ -2,6 +2,7 @@
 import re
 
 from aiogram import F, Router
+from aiogram.filters import Command
 from aiogram.fsm.context import FSMContext
 from aiogram.fsm.state import State, StatesGroup
 from aiogram.types import CallbackQuery, Message
@@ -129,6 +130,7 @@ async def finalize(message: Message, state: FSMContext):
 
 # --- Oqim boshlanishi ---
 
+@router.message(Command("new"))
 @router.message(F.text == BTN_NEW)
 async def new_reminder(message: Message, state: FSMContext):
     await state.clear()
@@ -136,7 +138,8 @@ async def new_reminder(message: Message, state: FSMContext):
     await message.answer(
         "Nimani eslatay? ✍️\n\n"
         "<i>Maslahat: vaqtini ham qo'shib yozsangiz bo'ladi, masalan:\n"
-        "«har kuni 8:00 da dori ichish»</i>"
+        "«har kuni 8:00 da dori ichish»</i>\n\n"
+        "Bekor qilish uchun /cancel yozing."
     )
 
 
