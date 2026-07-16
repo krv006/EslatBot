@@ -1,0 +1,91 @@
+{% extends "admin/index.html" %}
+{% load i18n %}
+
+{% block content %}
+{% if dashboard_stats %}
+<style>
+  .stat-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+    gap: 14px;
+    margin: 0 0 26px 0;
+  }
+  .stat-card {
+    background: var(--darkened-bg, #fff);
+    border: 1px solid var(--hairline-color, #e5e7eb);
+    border-radius: 12px;
+    padding: 16px 18px;
+    box-shadow: 0 1px 3px rgba(0,0,0,.06);
+  }
+  .stat-card .label {
+    font-size: 12px;
+    color: var(--body-quiet-color, #6b7280);
+    text-transform: uppercase;
+    letter-spacing: .4px;
+    margin-bottom: 6px;
+  }
+  .stat-card .value { font-size: 30px; font-weight: 700; line-height: 1; }
+  .stat-card .sub { font-size: 12px; color: var(--body-quiet-color, #9ca3af); margin-top: 6px; }
+  .stat-accent-green .value { color: #22c55e; }
+  .stat-accent-blue  .value { color: #3b82f6; }
+  .stat-accent-amber .value { color: #f59e0b; }
+  .stat-accent-violet .value { color: #8b5cf6; }
+  .stat-section-title {
+    font-size: 15px; font-weight: 700; margin: 4px 0 12px 0;
+    display: flex; align-items: center; gap: 8px;
+  }
+  .freq-pills { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 26px; }
+  .freq-pill {
+    background: var(--darkened-bg, #f3f4f6);
+    border: 1px solid var(--hairline-color, #e5e7eb);
+    border-radius: 999px; padding: 6px 14px; font-size: 13px;
+  }
+  .freq-pill b { font-weight: 700; }
+</style>
+
+<div class="stat-section-title">📊 Umumiy statistika</div>
+<div class="stat-grid">
+  <div class="stat-card stat-accent-blue">
+    <div class="label">👥 Foydalanuvchilar</div>
+    <div class="value">{{ dashboard_stats.users_total }}</div>
+    <div class="sub">{{ dashboard_stats.users_registered }} ta ro'yxatdan o'tgan</div>
+  </div>
+  <div class="stat-card stat-accent-green">
+    <div class="label">🆕 Bugun kelgan</div>
+    <div class="value">{{ dashboard_stats.users_today }}</div>
+    <div class="sub">7 kunda: {{ dashboard_stats.users_week }} ta</div>
+  </div>
+  <div class="stat-card stat-accent-violet">
+    <div class="label">🔔 Faol eslatmalar</div>
+    <div class="value">{{ dashboard_stats.rem_active }}</div>
+    <div class="sub">Jami: {{ dashboard_stats.rem_total }} ta</div>
+  </div>
+  <div class="stat-card stat-accent-amber">
+    <div class="label">🌅 Digest yoqilgan</div>
+    <div class="value">{{ dashboard_stats.digest_on }}</div>
+    <div class="sub">ertalabki kun rejasi</div>
+  </div>
+  <div class="stat-card stat-accent-green">
+    <div class="label">📤 Referallar</div>
+    <div class="value">{{ dashboard_stats.ref_total }}</div>
+    <div class="sub">{{ dashboard_stats.ref_claimed }} ta qabul qilingan</div>
+  </div>
+  <div class="stat-card stat-accent-blue">
+    <div class="label">⭐ Premium userlar</div>
+    <div class="value">{{ dashboard_stats.users_premium }}</div>
+    <div class="sub">Telegram Premium</div>
+  </div>
+</div>
+
+{% if dashboard_stats.by_freq %}
+<div class="stat-section-title">🔁 Faol eslatmalar — takror turi bo'yicha</div>
+<div class="freq-pills">
+  {% for name, count in dashboard_stats.by_freq %}
+    <span class="freq-pill">{{ name }} — <b>{{ count }}</b></span>
+  {% endfor %}
+</div>
+{% endif %}
+{% endif %}
+
+{{ block.super }}
+{% endblock %}

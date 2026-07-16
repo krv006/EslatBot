@@ -1,12 +1,85 @@
+from datetime import date, timedelta
+
 from django.contrib import admin
+from django.db import connection
 from django.db.models import Count
 from django.utils.html import format_html
 
-from .models import BotUser, Reminder
+from .models import BotUser, Referral, Reminder
 
 admin.site.site_header = "🔔 EslatBot — Adminka"
 admin.site.site_title = "EslatBot"
 admin.site.index_title = "Boshqaruv paneli"
+
+
+# =====================================================================
+# Bosh sahifadagi statistika paneli (dashboard)
+# =====================================================================
+
+def _scalar(cur, sql, params=()):
+    cur.execute(sql, params)
+    row = cur.fetchone()
+    return row[0] if row and row[0] is not None else 0
+
+
+def get_dashboard_stats() -> dict | None:
+    """Bosh sahifa uchun umumiy statistika. Xato bo'lsa (jadval yo'q) — None."""
+    today = date.today().isoformat()
+    week_start = (date.today() - timedelta(days=6)).isoformat()
+    try:
+        with connection.cursor() as cur:
+            stats = {
+                "users_total": _scalar(cur, "SELECT COUNT(*) FROM users"),
+                "users_registered": _scalar(
+                    cur, "SELECT COUNT(*) FROM users WHERE registered=1"),
+                "users_today": _scalar(
+                    cur, "SELECT COUNT(*) FROM users WHERE substr(created_at,1,10)=%s",
+                    [today]),
+                "users_week": _scalar(
+                    cur, "SELECT COUNT(*) FROM users WHERE substr(created_at,1,10)>=%s",
+                    [week_start]),
+                "users_premium": _scalar(
+                    cur, "SELECT COUNT(*) FROM users WHERE is_premium=1"),
+                "digest_on": _scalar(
+                    cur, "SELECT COUNT(*) FROM users WHERE digest_enabled=1"),
+                "rem_total": _scalar(cur, "SELECT COUNT(*) FROM reminders"),
+                "rem_active": _scalar(
+                    cur, "SELECT COUNT(*) FROM reminders WHERE is_active=1"),
+            }
+            # Takror turlari bo'yicha (faol eslatmalar)
+            cur.execute(
+                "SELECT freq, COUNT(*) FROM reminders WHERE is_active=1 GROUP BY freq")
+            freq_names = {
+                "once": "📌 Bir marta", "daily": "📅 Har kuni",
+                "every2": "🔁 Kun ora", "weekly": "📆 Haftada bir",
+                "monthly": "🗓 Oyda bir",
+            }
+            stats["by_freq"] = [
+                (freq_names.get(f, f), c) for f, c in cur.fetchall()
+            ]
+            # Referallar (jadval hali yaratilmagan bo'lishi mumkin — himoyalaymiz)
+            try:
+                stats["ref_total"] = _scalar(cur, "SELECT COUNT(*) FROM referrals")
+                stats["ref_claimed"] = _scalar(
+                    cur, "SELECT COUNT(*) FROM referrals WHERE claimed_count>=1")
+            except Exception:
+                stats["ref_total"] = stats["ref_claimed"] = 0
+        return stats
+    except Exception:
+        return None
+
+
+_orig_index = admin.site.index
+
+
+def _index_with_stats(request, extra_context=None):
+    extra_context = extra_context or {}
+    extra_context["dashboard_stats"] = get_dashboard_stats()
+    return _orig_index(request, extra_context)
+
+
+admin.site.index = _index_with_stats
+admin.site.index_template = "admin/eslat_index.html"
 
 
 class ReminderInline(admin.TabularInline):
@@ -79,3 +152,39 @@ class ReminderAdmin(admin.ModelAdmin):
     @admin.display(description="Egasining telefoni")
     def user_phone(self, obj):
         return obj.user.phone or "—"
+
+
+@admin.register(Referral)
+class ReferralAdmin(admin.ModelAdmin):
+    list_display = (
+        "id", "text", "from_user", "from_phone", "freq", "vaqti",
+        "holat", "created_at",
+    )
+    list_filter = ("freq", "claimed_count")
+    search_fields = (
+        "text", "token", "from_user__name", "from_user__username",
+        "from_user__phone", "from_user__tg_id",
+    )
+    ordering = ("-id",)
+    list_select_related = ("from_user",)
+    readonly_fields = (
+        "token", "from_user", "text", "freq", "weekday", "monthday",
+        "hour", "minute", "start_date", "created_at", "claimed_count",
+    )
+
+    def has_add_permission(self, request):
+        return False  # Referallar bot orqali yaratiladi, qo'lda emas
+
+    @admin.display(description="Vaqti")
+    def vaqti(self, obj):
+        return obj.time_str
+
+    @admin.display(description="Yuboruvchi telefoni")
+    def from_phone(self, obj):
+        return obj.from_user.phone or "—"
+
+    @admin.display(description="Holat")
+    def holat(self, obj):
+        if obj.claimed_count and obj.claimed_count >= 1:
+            return format_html('<span style="color:#22c55e">✅ Qabul qilingan</span>')
+        return format_html('<span style="color:#f59e0b">⏳ Kutilmoqda</span>')

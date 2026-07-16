@@ -70,3 +70,36 @@ class Reminder(models.Model):
     @property
     def time_str(self):
         return f"{self.hour:02d}:{self.minute:02d}"
+
+
+class Referral(models.Model):
+    """Referal — bir user eslatmani boshqaga ulashgani (users.referrals jadvali)."""
+    token = models.TextField("Havola tokeni")
+    from_user = models.ForeignKey(
+        BotUser, on_delete=models.CASCADE, db_column="from_user_id",
+        related_name="referrals_sent", verbose_name="Yuboruvchi",
+    )
+    text = models.TextField("Eslatma matni")
+    freq = models.TextField("Takrorlanish", choices=FREQ_CHOICES)
+    weekday = models.IntegerField(
+        "Hafta kuni", choices=WEEKDAY_CHOICES, blank=True, null=True
+    )
+    monthday = models.IntegerField("Oy kuni", blank=True, null=True)
+    hour = models.IntegerField("Soat")
+    minute = models.IntegerField("Daqiqa")
+    start_date = models.TextField(blank=True, null=True)
+    created_at = models.DateTimeField("Yaratilgan", blank=True, null=True)
+    claimed_count = models.IntegerField("Qabul soni", default=0)
+
+    class Meta:
+        managed = False
+        db_table = "referrals"
+        verbose_name = "Referal"
+        verbose_name_plural = "Referallar"
+
+    def __str__(self):
+        return self.text[:50]
+
+    @property
+    def time_str(self):
+        return f"{self.hour:02d}:{self.minute:02d}"
