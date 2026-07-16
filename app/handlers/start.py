@@ -56,6 +56,12 @@ async def _apply_ref_token(bot, token: str, tg_id: int) -> None:
             tg_id,
             "🙂 Bu sizning o'z referal havolangiz — uni boshqa odamga yuboring.",
         )
+    elif status == "used":
+        await bot.send_message(
+            tg_id,
+            "⚠️ Bu referal havolasi allaqachon ishlatilgan — u bir martalik edi. "
+            "Eslatma egasidan yangi havola so'rang.",
+        )
 
 
 @router.message(CommandStart())

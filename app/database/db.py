@@ -374,10 +374,18 @@ async def get_referral_by_token(token: str) -> dict | None:
     return dict(row) if row else None
 
 
-async def increment_referral_claim(referral_id: int) -> None:
+async def try_claim_referral(referral_id: int) -> bool:
+    """Referalni ATOMAR ravishda 'band' qiladi (bir martalik link).
+
+    True  — biz birinchi bo'lib oldik (yetkazish mumkin);
+    False — allaqachon ishlatilgan (link kuchini yo'qotgan).
+    Bitta UPDATE ichida shart tekshiriladi — ikki kishi bir vaqtda ochsa ham
+    faqat bittasi 'ROW o'zgardi' natijasini oladi (poyga-xavfsiz).
+    """
     async with _lock:
-        await _db().execute(
-            "UPDATE referrals SET claimed_count = claimed_count + 1 WHERE id = ?",
+        cur = await _db().execute(
+            "UPDATE referrals SET claimed_count = 1 WHERE id = ? AND claimed_count = 0",
             (referral_id,),
         )
         await _db().commit()
+        return cur.rowcount == 1

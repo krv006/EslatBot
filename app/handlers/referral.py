@@ -90,10 +90,14 @@ async def deliver_referral(bot, referral: dict, target_db_id: int,
                            notify_referrer: bool = True) -> str:
     """Referalni qabul qiluvchiga yetkazadi (avtomatik qo'shadi + xabar beradi).
 
-    Qaytaradi: 'self' (o'ziga) | 'delivered'.
+    Qaytaradi: 'self' (o'ziga) | 'used' (link allaqachon ishlatilgan) | 'delivered'.
     """
     if target_db_id == referral["from_user_id"]:
         return "self"
+
+    # Bir martalik: atomar band qilamiz. Band qilib bo'lmasa — allaqachon ishlatilgan.
+    if not await db.try_claim_referral(referral["id"]):
+        return "used"
 
     rid, passed = await _clone_and_schedule(bot, referral, target_db_id)
     target = await db.get_user_by_id(target_db_id)
@@ -126,7 +130,6 @@ async def deliver_referral(bot, referral: dict, target_db_id: int,
         except Exception:
             pass
 
-    await db.increment_referral_claim(referral["id"])
     return "delivered"
 
 
@@ -155,8 +158,9 @@ async def start_referral(callback: CallbackQuery, state: FSMContext):
         f"📝 <b>{esc(rem['text'])}</b>\n🕒 {when}\n\n"
         "Bu eslatmani boshqa odamga yuborishingiz mumkin 👇\n\n"
         f"🔗 <b>Ulashish linki:</b>\n<code>{link}</code>\n\n"
-        "Linkni istalgan odamga yuboring — u ochib, ro'yxatga qo'shilgach "
-        "eslatma unga avtomatik qo'shiladi.\n\n"
+        "Linkni <b>bitta</b> odamga yuboring — u ochib, ro'yxatga qo'shilgach "
+        "eslatma unga avtomatik qo'shiladi. <i>(Havola bir martalik: bir kishi "
+        "qabul qilgach kuchini yo'qotadi.)</i>\n\n"
         "📱 <b>Yoki</b> qabul qiluvchining <b>kontaktini yuboring</b> "
         "(📎 → Kontakt): agar u allaqachon botimizda bo'lsa, eslatma unga "
         "shu zahoti to'g'ridan-to'g'ri boradi.",
@@ -227,6 +231,14 @@ async def got_target_contact(message: Message, state: FSMContext):
     if status == "self":
         await message.answer(
             "🙂 Bu eslatma allaqachon o'zingizda bor — o'zingizga referal qila olmaysiz.",
+            reply_markup=main_menu,
+        )
+        return
+    if status == "used":
+        await message.answer(
+            "⚠️ Bu referal allaqachon ishlatilgan (bir martalik). "
+            "Qaytadan yubormoqchi bo'lsangiz, eslatma ostidagi <b>📤 Referal</b> "
+            "tugmasini yana bosing.",
             reply_markup=main_menu,
         )
         return
