@@ -22,7 +22,7 @@ from app.database import db
 from app.keyboards.keyboards import (
     BTN_REFERRAL,
     main_menu,
-    referral_pick_kb,
+    referral_list_kb,
     referral_received_kb,
     referral_share_kb,
 )
@@ -182,16 +182,9 @@ async def referral_menu(message: Message, state: FSMContext):
         )
         return
     await message.answer(
-        "📤 <b>Referal</b>\n\nQaysi eslatmani ulashamiz? Kerakli eslatma ostidagi "
-        "<b>📤 Referal qilish</b> tugmasini bosing 👇"
+        "📤 <b>Referal</b>\n\nQaysi eslatmani ulashamiz? Ro'yxatdan tanlang 👇",
+        reply_markup=referral_list_kb(reminders),
     )
-    for rem in reminders:
-        when = describe(rem["freq"], rem["weekday"], rem["monthday"],
-                        rem["hour"], rem["minute"], start_date=rem["start_date"])
-        await message.answer(
-            f"📝 <b>{esc(rem['text'])}</b>\n🕒 {when}",
-            reply_markup=referral_pick_kb(rem["id"]),
-        )
 
 
 # --- Qabul qiluvchi kontakti yuborilganda (to'g'ridan-to'g'ri yuborish) ---
