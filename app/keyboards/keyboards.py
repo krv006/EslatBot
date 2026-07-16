@@ -12,6 +12,7 @@ BTN_NEW = "➕ Yangi eslatma"
 BTN_LIST = "📋 Eslatmalarim"
 BTN_PLAN = "📝 Kunlik reja"
 BTN_SETTINGS = "⚙️ Sozlamalar"
+BTN_REFERRAL = "📤 Referal"
 BTN_SKIP = "⏭ O'tkazib yuborish"
 BTN_SHARE_PHONE = "📱 Raqamni ulashish"
 
@@ -19,6 +20,7 @@ main_menu = ReplyKeyboardMarkup(
     keyboard=[
         [KeyboardButton(text=BTN_NEW), KeyboardButton(text=BTN_LIST)],
         [KeyboardButton(text=BTN_PLAN), KeyboardButton(text=BTN_SETTINGS)],
+        [KeyboardButton(text=BTN_REFERRAL)],
     ],
     resize_keyboard=True,
 )
@@ -123,8 +125,37 @@ def reminder_manage_kb(reminder_id: int, is_active: bool) -> InlineKeyboardMarku
     )
     return InlineKeyboardMarkup(
         inline_keyboard=[
-            [InlineKeyboardButton(text="✏️ Tahrirlash", callback_data=f"edit:{reminder_id}")],
+            [InlineKeyboardButton(text="✏️ Tahrirlash", callback_data=f"edit:{reminder_id}"),
+             InlineKeyboardButton(text="📤 Referal", callback_data=f"ref:{reminder_id}")],
             [toggle, InlineKeyboardButton(text="🗑 O'chirish", callback_data=f"del:{reminder_id}")],
+        ]
+    )
+
+
+def referral_share_kb(link: str) -> InlineKeyboardMarkup:
+    """Referal linkini Telegram orqali ulashish tugmasi."""
+    share_url = f"https://t.me/share/url?url={link}"
+    return InlineKeyboardMarkup(
+        inline_keyboard=[
+            [InlineKeyboardButton(text="📨 Telegram orqali ulashish", url=share_url)],
+        ]
+    )
+
+
+def referral_received_kb(reminder_id: int) -> InlineKeyboardMarkup:
+    """Referal qabul qilingan eslatma ostidagi 'Kerak emas' tugmasi."""
+    return InlineKeyboardMarkup(
+        inline_keyboard=[
+            [InlineKeyboardButton(text="🗑 Kerak emas", callback_data=f"refdel:{reminder_id}")],
+        ]
+    )
+
+
+def referral_pick_kb(reminder_id: int) -> InlineKeyboardMarkup:
+    """Referal menyusida eslatma ostidagi 'Referal' tugmasi."""
+    return InlineKeyboardMarkup(
+        inline_keyboard=[
+            [InlineKeyboardButton(text="📤 Referal qilish", callback_data=f"ref:{reminder_id}")],
         ]
     )
 

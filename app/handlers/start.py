@@ -1,11 +1,12 @@
 """/start, /help va sodda ro'yxatdan o'tish (ism + telefon)."""
 from aiogram import F, Router
-from aiogram.filters import Command, CommandStart
+from aiogram.filters import Command, CommandObject, CommandStart
 from aiogram.fsm.context import FSMContext
 from aiogram.fsm.state import State, StatesGroup
 from aiogram.types import Message
 
 from app.database import db
+from app.handlers.referral import deliver_referral
 from app.keyboards.keyboards import (
     BTN_SKIP,
     main_menu,
@@ -41,12 +42,32 @@ class Registration(StatesGroup):
     phone = State()
 
 
+async def _apply_ref_token(bot, token: str, tg_id: int) -> None:
+    """Deep-link orqali kelgan referalni foydalanuvchiga yetkazadi."""
+    referral = await db.get_referral_by_token(token)
+    if not referral:
+        return
+    target = await db.get_user(tg_id)
+    if not target:
+        return
+    status = await deliver_referral(bot, referral, target["id"], notify_referrer=True)
+    if status == "self":
+        await bot.send_message(
+            tg_id,
+            "🙂 Bu sizning o'z referal havolangiz — uni boshqa odamga yuboring.",
+        )
+
+
 @router.message(CommandStart())
-async def cmd_start(message: Message, state: FSMContext):
+async def cmd_start(message: Message, state: FSMContext, command: CommandObject):
     await state.clear()
     await db.upsert_user(message.from_user)
     user = await db.get_user(message.from_user.id)
     tg_name = message.from_user.first_name or "do'stim"
+
+    # Deep-link: t.me/bot?start=ref_<token>
+    payload = command.args or ""
+    ref_token = payload[4:] if payload.startswith("ref_") else None
 
     # Avval ro'yxatdan o'tgan bo'lsa — to'g'ridan-to'g'ri menyu
     if user and user.get("registered"):
@@ -55,10 +76,15 @@ async def cmd_start(message: Message, state: FSMContext):
             + HELP_TEXT,
             reply_markup=main_menu,
         )
+        if ref_token:
+            await _apply_ref_token(message.bot, ref_token, message.from_user.id)
         return
 
     # Sodda ro'yxatdan o'tish: 1) ism  2) telefon
     await state.set_state(Registration.name)
+    if ref_token:
+        # Ro'yxatdan o'tib bo'lgach referalni qo'llash uchun eslab qolamiz
+        await state.update_data(pending_ref_token=ref_token)
     await message.answer(
         f"Assalomu alaykum, <b>{esc(tg_name)}</b>! 👋\n"
         f"Men <b>EslatBot</b>man — muhim ishlaringizni unutmasligingizga yordam beraman.\n\n"
@@ -127,6 +153,10 @@ async def reg_phone_other(message: Message):
 
 
 async def _finish_registration(message: Message, state: FSMContext, phone_saved: bool):
+    # State tozalanishidan oldin kutilayotgan referal tokenini olamiz
+    data = await state.get_data()
+    ref_token = data.get("pending_ref_token")
+
     await db.set_registered(message.from_user.id)
     await state.clear()
 
@@ -142,6 +172,10 @@ async def _finish_registration(message: Message, state: FSMContext, phone_saved:
         "bitta xabarda yuboraman (vaqtini <b>⚙️ Sozlamalar</b>dan o'zgartirasiz).",
         reply_markup=main_menu,
     )
+
+    # Link orqali kelgan bo'lsa — referal eslatmasini endi qo'shamiz
+    if ref_token:
+        await _apply_ref_token(message.bot, ref_token, message.from_user.id)
 
 
 # Ro'yxatdan o'tib bo'lgach ham kontakt yuborsa — saqlab qo'yamiz

@@ -9,12 +9,13 @@ from aiogram.types import BotCommand
 
 from app.config import BOT_TOKEN
 from app.database import db
-from app.handlers import dayplan, edit, manage, reminders, settings, start
+from app.handlers import dayplan, edit, manage, referral, reminders, settings, start
 from app.scheduler.scheduler import (
     load_all_digests,
     load_all_reminders,
     scheduler,
 )
+from app.utils.sender import sender
 
 logging.basicConfig(
     level=logging.INFO,
@@ -36,11 +37,17 @@ async def main() -> None:
     bot = Bot(BOT_TOKEN, default=DefaultBotProperties(parse_mode=ParseMode.HTML))
     dp = Dispatcher()
 
-    # DIQQAT: reminders.router oxirida — unda erkin matnni ushlaydigan handler bor
+    # DIQQAT: referral.router start'dan oldin — Referral.target holatida kontaktni
+    # start.py'dagi umumiy kontakt-handleri ushlab qolmasligi uchun.
+    # reminders.router oxirida — unda erkin matnni ushlaydigan handler bor.
     dp.include_routers(
-        start.router, manage.router, settings.router,
+        referral.router, start.router, manage.router, settings.router,
         dayplan.router, edit.router, reminders.router,
     )
+
+    # Chiquvchi xabar navbatini ishga tushiramiz (flood himoyasi) — jadval
+    # ishga tushishidan oldin worker tayyor bo'lsin
+    await sender.start(bot)
 
     scheduler.start()
     await load_all_reminders(bot)
@@ -56,7 +63,10 @@ async def main() -> None:
 
     logger.info("EslatBot ishga tushdi! 🚀")
     await bot.delete_webhook(drop_pending_updates=True)
-    await dp.start_polling(bot)
+    try:
+        await dp.start_polling(bot)
+    finally:
+        await db.close_db()
 
 
 if __name__ == "__main__":

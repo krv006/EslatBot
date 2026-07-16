@@ -15,6 +15,7 @@ from app.database import db
 from app.keyboards.keyboards import reminder_fired_kb
 from app.utils.fmt import esc
 from app.utils.parser import MONTH_NAMES, WEEKDAY_NAMES
+from app.utils.sender import sender
 
 logger = logging.getLogger(__name__)
 
@@ -30,15 +31,12 @@ async def send_reminder(bot: Bot, reminder_id: int) -> None:
     rem = await db.get_reminder(reminder_id)
     if not rem or not rem["is_active"]:
         return
-    try:
-        await bot.send_message(
-            rem["tg_id"],
-            f"🔔 <b>Eslatma!</b>\n\n{esc(rem['text'])}",
-            reply_markup=reminder_fired_kb(reminder_id),
-        )
-    except Exception:
-        logger.exception("Eslatma yuborilmadi: id=%s", reminder_id)
-        return
+    # To'g'ridan-to'g'ri emas, navbat orqali — flood limitiga urilmaslik uchun
+    await sender.enqueue(
+        rem["tg_id"],
+        f"🔔 <b>Eslatma!</b>\n\n{esc(rem['text'])}",
+        reply_markup=reminder_fired_kb(reminder_id),
+    )
     # Bir martalik eslatma yuborilgach o'chadi (snooze uni qayta yoqadi)
     if rem["freq"] == "once":
         await db.set_reminder_active(reminder_id, False)
@@ -231,10 +229,8 @@ async def send_digest(bot: Bot, user_db_id: int) -> None:
     todays = [r for r in reminders if is_today_reminder(r, today)]
     name = user.get("name") or "do'stim"
     text = build_digest_text(name, todays) if todays else build_empty_digest_text(name)
-    try:
-        await bot.send_message(user["tg_id"], text)
-    except Exception:
-        logger.exception("Digest yuborilmadi: user_db_id=%s", user_db_id)
+    # Navbat orqali — 07:00 da minglab digest bir vaqtda otilganda flood bo'lmasin
+    await sender.enqueue(user["tg_id"], text)
 
 
 def schedule_digest(bot: Bot, user: dict) -> None:
