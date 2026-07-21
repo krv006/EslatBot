@@ -15,6 +15,7 @@ from app.scheduler.scheduler import (
     unschedule_reminder,
 )
 from app.utils.fmt import esc
+from app.utils.guards import get_owned_reminder
 from app.utils.parser import describe
 
 router = Router()
@@ -50,11 +51,11 @@ async def list_reminders(message: Message):
 async def toggle_reminder(callback: CallbackQuery):
     _, rid, active = callback.data.split(":")
     rid, active = int(rid), active == "1"
+    # Avval egalikni tekshiramiz — keyin o'zgartiramiz
+    if not await get_owned_reminder(callback, rid):
+        return
     await db.set_reminder_active(rid, active)
     rem = await db.get_reminder(rid)
-    if not rem:
-        await callback.answer("Eslatma topilmadi", show_alert=True)
-        return
     if active:
         schedule_reminder(callback.bot, rem)
     else:
@@ -69,6 +70,8 @@ async def toggle_reminder(callback: CallbackQuery):
 @router.callback_query(F.data.startswith("del:"))
 async def del_reminder(callback: CallbackQuery):
     rid = int(callback.data.split(":")[1])
+    if not await get_owned_reminder(callback, rid):
+        return
     unschedule_reminder(rid)
     await db.delete_reminder(rid)
     await callback.message.edit_text("🗑 Eslatma o'chirildi.")
@@ -90,9 +93,11 @@ _SNOOZE_LABELS = {10: "10 daqiqa", 30: "30 daqiqa", 60: "1 soat"}
 async def snooze_flexible(callback: CallbackQuery):
     _, rid, val = callback.data.split(":")
     rid = int(rid)
-    rem = await db.get_reminder(rid)
+    rem = await get_owned_reminder(callback, rid)
+    if not rem:
+        return
     # Bir martalik eslatma yuborilgach o'chadi — snooze uchun qayta yoqamiz
-    if rem and rem["freq"] == "once" and not rem["is_active"]:
+    if rem["freq"] == "once" and not rem["is_active"]:
         await db.set_reminder_active(rid, True)
 
     if val == "tomorrow":
@@ -119,8 +124,10 @@ async def snooze_flexible(callback: CallbackQuery):
 async def snooze_reminder(callback: CallbackQuery):
     """Eski (deploydan oldin yuborilgan) xabarlardagi "+10 daqiqa" tugmasi uchun."""
     rid = int(callback.data.split(":")[1])
-    rem = await db.get_reminder(rid)
-    if rem and rem["freq"] == "once" and not rem["is_active"]:
+    rem = await get_owned_reminder(callback, rid)
+    if not rem:
+        return
+    if rem["freq"] == "once" and not rem["is_active"]:
         await db.set_reminder_active(rid, True)
     schedule_snooze(callback.bot, rid, minutes=10)
     await callback.message.edit_text(

@@ -23,6 +23,7 @@ from app.scheduler.scheduler import (
     schedule_reminder,
 )
 from app.utils.fmt import esc
+from app.utils.guards import get_owned_reminder
 from app.utils.parser import describe, parse_time
 
 router = Router()
@@ -59,6 +60,8 @@ async def _confirm(message: Message, rem_id: int, note: str):
 @router.callback_query(F.data.startswith("edit:"))
 async def edit_open(callback: CallbackQuery):
     rid = int(callback.data.split(":")[1])
+    if not await get_owned_reminder(callback, rid):
+        return
     await callback.message.edit_reply_markup(reply_markup=edit_menu_kb(rid))
     await callback.answer("Nimani o'zgartiramiz?")
 
@@ -66,11 +69,12 @@ async def edit_open(callback: CallbackQuery):
 @router.callback_query(F.data.startswith("e_back:"))
 async def edit_back(callback: CallbackQuery):
     rid = int(callback.data.split(":")[1])
-    rem = await db.get_reminder(rid)
-    if rem:
-        await callback.message.edit_reply_markup(
-            reply_markup=reminder_manage_kb(rid, bool(rem["is_active"]))
-        )
+    rem = await get_owned_reminder(callback, rid)
+    if not rem:
+        return
+    await callback.message.edit_reply_markup(
+        reply_markup=reminder_manage_kb(rid, bool(rem["is_active"]))
+    )
     await callback.answer()
 
 
@@ -79,6 +83,8 @@ async def edit_back(callback: CallbackQuery):
 @router.callback_query(F.data.startswith("e_text:"))
 async def edit_text_ask(callback: CallbackQuery, state: FSMContext):
     rid = int(callback.data.split(":")[1])
+    if not await get_owned_reminder(callback, rid):
+        return
     await state.set_state(EditReminder.text)
     await state.update_data(edit_id=rid)
     await callback.message.answer("✍️ Yangi matnni yozing:")
@@ -102,6 +108,8 @@ async def edit_text_save(message: Message, state: FSMContext):
 @router.callback_query(F.data.startswith("e_time:"))
 async def edit_time_ask(callback: CallbackQuery, state: FSMContext):
     rid = int(callback.data.split(":")[1])
+    if not await get_owned_reminder(callback, rid):
+        return
     await state.set_state(EditReminder.time_)
     await state.update_data(edit_id=rid)
     await callback.message.answer(
@@ -169,6 +177,8 @@ async def _apply_edit_time(message: Message, state: FSMContext, hour: int, minut
 @router.callback_query(F.data.startswith("e_freq:"))
 async def edit_freq_ask(callback: CallbackQuery, state: FSMContext):
     rid = int(callback.data.split(":")[1])
+    if not await get_owned_reminder(callback, rid):
+        return
     await state.update_data(edit_id=rid)
     await callback.message.answer(
         "🔁 Qanchalik tez-tez eslatay? 👇\n"

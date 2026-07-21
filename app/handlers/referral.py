@@ -33,6 +33,7 @@ from app.scheduler.scheduler import (
     unschedule_reminder,
 )
 from app.utils.fmt import esc
+from app.utils.guards import get_owned_reminder
 from app.utils.parser import describe
 
 logger = logging.getLogger(__name__)
@@ -138,9 +139,8 @@ async def deliver_referral(bot, referral: dict, target_db_id: int,
 @router.callback_query(F.data.startswith("ref:"))
 async def start_referral(callback: CallbackQuery, state: FSMContext):
     rid = int(callback.data.split(":")[1])
-    rem = await db.get_reminder(rid)
-    if not rem or rem["tg_id"] != callback.from_user.id:
-        await callback.answer("Eslatma topilmadi", show_alert=True)
+    rem = await get_owned_reminder(callback, rid)
+    if not rem:
         return
 
     token = _new_token()
@@ -249,6 +249,8 @@ async def got_target_contact(message: Message, state: FSMContext):
 @router.callback_query(F.data.startswith("refdel:"))
 async def referral_decline(callback: CallbackQuery):
     rid = int(callback.data.split(":")[1])
+    if not await get_owned_reminder(callback, rid):
+        return
     unschedule_reminder(rid)
     await db.delete_reminder(rid)
     await callback.message.edit_text("🗑 Eslatma o'chirildi — ro'yxatingizga qo'shilmadi.")
