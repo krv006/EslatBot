@@ -53,6 +53,27 @@ plan_done_kb = ReplyKeyboardMarkup(
 )
 
 
+def time_quick_kb(prefix: str) -> InlineKeyboardMarkup:
+    """Ommabop vaqtlar — bir tegishda tanlash. `prefix` har oqim uchun har xil
+    (ntm=yangi, etm=tahrir, dtm=digest). Foydalanuvchi baribir o'zi yozishi ham mumkin.
+    """
+    times = [
+        (6, 0), (7, 0), (8, 0),
+        (9, 0), (12, 0), (15, 0),
+        (18, 0), (20, 0), (21, 0),
+    ]
+    rows, row = [], []
+    for h, m in times:
+        row.append(InlineKeyboardButton(
+            text=f"🕒 {h:02d}:{m:02d}", callback_data=f"{prefix}:{h}:{m}"))
+        if len(row) == 3:
+            rows.append(row)
+            row = []
+    if row:
+        rows.append(row)
+    return InlineKeyboardMarkup(inline_keyboard=rows)
+
+
 def name_confirm_kb(tg_name: str) -> ReplyKeyboardMarkup:
     """Ro'yxatdan o'tishda: TG'dagi ismni tasdiqlash yoki yangisini yozish."""
     return ReplyKeyboardMarkup(

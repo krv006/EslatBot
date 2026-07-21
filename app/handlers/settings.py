@@ -5,7 +5,12 @@ from aiogram.fsm.state import State, StatesGroup
 from aiogram.types import CallbackQuery, Message
 
 from app.database import db
-from app.keyboards.keyboards import BTN_SETTINGS, main_menu, settings_kb
+from app.keyboards.keyboards import (
+    BTN_SETTINGS,
+    main_menu,
+    settings_kb,
+    time_quick_kb,
+)
 from app.scheduler.scheduler import schedule_digest, unschedule_digest
 from app.utils.parser import parse_time
 
@@ -66,8 +71,9 @@ async def toggle_digest(callback: CallbackQuery):
 async def ask_digest_time(callback: CallbackQuery, state: FSMContext):
     await state.set_state(DigestTime.time_)
     await callback.message.answer(
-        "🌅 Ertalabki reja soat nechada kelsin?\n"
-        "Masalan: <b>07:00</b> yoki <b>06:30</b>"
+        "🌅 Ertalabki reja soat nechada kelsin? Tanlang yoki yozing "
+        "(masalan <b>06:30</b>) 👇",
+        reply_markup=time_quick_kb("dtm"),
     )
     await callback.answer()
 
@@ -77,14 +83,29 @@ async def got_digest_time(message: Message, state: FSMContext):
     parsed = parse_time(message.text)
     if parsed is None:
         await message.answer(
-            "Vaqtni tushunmadim 😅 Shunday yozing: <b>07:00</b> yoki <b>06:30</b>"
+            "Vaqtni tushunmadim 😅 Tugmadan tanlang yoki shunday yozing: "
+            "<b>07:00</b> yoki <b>06:30</b>",
+            reply_markup=time_quick_kb("dtm"),
         )
         return
-    hour, minute = parsed
+    await _apply_digest_time(message, state, message.from_user.id, *parsed)
+
+
+@router.callback_query(DigestTime.time_, F.data.startswith("dtm:"))
+async def got_digest_time_btn(callback: CallbackQuery, state: FSMContext):
+    _, h, m = callback.data.split(":")
+    await callback.message.edit_reply_markup(reply_markup=None)
+    await callback.answer()
+    # DIQQAT: callback.message.from_user — bot; haqiqiy user callback.from_user
+    await _apply_digest_time(callback.message, state, callback.from_user.id, int(h), int(m))
+
+
+async def _apply_digest_time(message: Message, state: FSMContext,
+                             tg_id: int, hour: int, minute: int):
     await state.clear()
-    await db.set_digest_time(message.from_user.id, hour, minute)
-    await db.set_digest_enabled(message.from_user.id, True)
-    user = await db.get_user(message.from_user.id)
+    await db.set_digest_time(tg_id, hour, minute)
+    await db.set_digest_enabled(tg_id, True)
+    user = await db.get_user(tg_id)
     schedule_digest(message.bot, user)
     await message.answer(
         f"✅ Endi har kuni <b>{hour:02d}:{minute:02d}</b> da "

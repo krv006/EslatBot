@@ -14,6 +14,7 @@ from app.keyboards.keyboards import (
     edit_once_day_kb,
     edit_weekday_kb,
     reminder_manage_kb,
+    time_quick_kb,
 )
 from app.scheduler.scheduler import (
     TZ,
@@ -104,7 +105,8 @@ async def edit_time_ask(callback: CallbackQuery, state: FSMContext):
     await state.set_state(EditReminder.time_)
     await state.update_data(edit_id=rid)
     await callback.message.answer(
-        "🕒 Yangi vaqtni yozing. Masalan: <b>09:00</b> yoki <b>21:30</b>"
+        "🕒 Yangi vaqtni tanlang yoki yozing (masalan <b>09:00</b>) 👇",
+        reply_markup=time_quick_kb("etm"),
     )
     await callback.answer()
 
@@ -114,12 +116,25 @@ async def edit_time_save(message: Message, state: FSMContext):
     parsed = parse_time(message.text)
     if parsed is None:
         await message.answer(
-            "Vaqtni tushunmadim 😅 Shunday yozing: <b>09:00</b> yoki <b>21:30</b>"
+            "Vaqtni tushunmadim 😅 Tugmadan tanlang yoki shunday yozing: "
+            "<b>09:00</b> yoki <b>21:30</b>",
+            reply_markup=time_quick_kb("etm"),
         )
         return
-    hour, minute = parsed
+    await _apply_edit_time(message, state, parsed[0], parsed[1])
+
+
+@router.callback_query(EditReminder.time_, F.data.startswith("etm:"))
+async def edit_time_btn(callback: CallbackQuery, state: FSMContext):
+    _, h, m = callback.data.split(":")
+    await callback.message.edit_reply_markup(reply_markup=None)
+    await callback.answer()
+    await _apply_edit_time(callback.message, state, int(h), int(m))
+
+
+async def _apply_edit_time(message: Message, state: FSMContext, hour: int, minute: int):
     data = await state.get_data()
-    rem = await db.get_reminder(data["edit_id"])
+    rem = await db.get_reminder(data.get("edit_id"))
     if not rem:
         await state.clear()
         await message.answer("Eslatma topilmadi 🤷")
@@ -135,8 +150,9 @@ async def edit_time_save(message: Message, state: FSMContext):
         dt = base.replace(hour=hour, minute=minute, second=0, microsecond=0)
         if dt <= datetime.now(TZ):
             await message.answer(
-                "⚠️ Bu vaqt o'tib ketgan 😅 Boshqa vaqt yozing yoki "
-                "🔁 <b>Takror</b> orqali kunini o'zgartiring."
+                "⚠️ Bu vaqt o'tib ketgan 😅 Boshqa vaqt tanlang/yozing yoki "
+                "🔁 <b>Takror</b> orqali kunini o'zgartiring.",
+                reply_markup=time_quick_kb("etm"),
             )
             return
         fields["start_date"] = dt.isoformat()

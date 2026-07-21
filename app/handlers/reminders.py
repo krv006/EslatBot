@@ -15,6 +15,7 @@ from app.keyboards.keyboards import (
     freq_kb,
     main_menu,
     once_day_kb,
+    time_quick_kb,
     weekday_kb,
 )
 from app.scheduler.scheduler import (
@@ -61,7 +62,11 @@ async def ask_next(message: Message, state: FSMContext):
         await message.answer("Oyning qaysi kuni? Raqam yozing (1-31):")
     elif data.get("hour") is None:
         await state.set_state(NewReminder.time_)
-        await message.answer("Soat nechada eslatay? Masalan: <b>09:00</b> yoki <b>21:30</b>")
+        await message.answer(
+            "Soat nechada eslatay? Tugmadan tanlang yoki o'zingiz yozing "
+            "(masalan <b>07:30</b>) 👇",
+            reply_markup=time_quick_kb("ntm"),
+        )
     else:
         await finalize(message, state)
 
@@ -86,7 +91,8 @@ async def finalize(message: Message, state: FSMContext):
             await state.update_data(hour=None, minute=None)
             await message.answer(
                 "⚠️ Bu vaqt bugun allaqachon o'tib ketdi 😅\n"
-                "Boshqa vaqt yozing (masalan <b>21:30</b>) yoki /start bilan qaytadan boshlang."
+                "Boshqa vaqt tanlang yoki yozing (masalan <b>21:30</b>) 👇",
+                reply_markup=time_quick_kb("ntm"),
             )
             return
         start_date = dt.isoformat()
@@ -196,11 +202,22 @@ async def got_time(message: Message, state: FSMContext):
     parsed = parse_time(message.text)
     if parsed is None:
         await message.answer(
-            "Vaqtni tushunmadim 😅 Iltimos, shunday yozing: <b>09:00</b> yoki <b>21:30</b>"
+            "Vaqtni tushunmadim 😅 Tugmadan tanlang yoki shunday yozing: "
+            "<b>09:00</b> yoki <b>21:30</b>",
+            reply_markup=time_quick_kb("ntm"),
         )
         return
     await state.update_data(hour=parsed[0], minute=parsed[1])
     await ask_next(message, state)
+
+
+@router.callback_query(NewReminder.time_, F.data.startswith("ntm:"))
+async def got_time_btn(callback: CallbackQuery, state: FSMContext):
+    _, h, m = callback.data.split(":")
+    await state.update_data(hour=int(h), minute=int(m))
+    await callback.message.edit_reply_markup(reply_markup=None)
+    await callback.answer()
+    await ask_next(callback.message, state)
 
 
 # --- Ovozli xabar: matnga aylantirib, xuddi yozilgandek qayta ishlaymiz ---
