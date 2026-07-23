@@ -20,17 +20,15 @@ from app.keyboards.keyboards import (
 )
 from app.scheduler.scheduler import (
     TZ,
-    date_run_date,
     first_run_date,
-    next_weekday_run_date,
-    once_run_date,
+    once_start,
     schedule_digest,
     schedule_reminder,
 )
 from app.utils.ai import ai_available, ai_parse_reminder
 from app.utils.fmt import esc
 from app.utils.parser import describe, parse_text, parse_time
-from app.utils.stt import stt_available, transcribe_voice
+from app.utils.stt import voice_to_text
 
 router = Router()
 
@@ -77,22 +75,16 @@ async def finalize(message: Message, state: FSMContext):
 
     start_date = None
     if data["freq"] == "once":
-        if data.get("once_date") is not None:
-            # "20-iyulda 10 da" — aniq sana
-            dt = date_run_date(data["once_date"], data["hour"], data["minute"])
-        elif data.get("once_weekday") is not None:
-            # "dushanba kuni 10 da" — eng yaqin keladigan dushanba, o'tib ketmaydi
-            dt = next_weekday_run_date(data["once_weekday"], data["hour"], data["minute"])
-        else:
-            dt = once_run_date(data.get("once_offset") or 0, data["hour"], data["minute"])
-        if dt <= datetime.now(TZ):
+        dt = once_start(data)
+        now = datetime.now(TZ)
+        if dt <= now:
             # "Bugun"ga tanlangan vaqt allaqachon o'tib ketgan
             await state.set_state(NewReminder.time_)
             await state.update_data(hour=None, minute=None)
             await message.answer(
                 "⚠️ Bu vaqt bugun allaqachon o'tib ketdi 😅\n"
                 "Boshqa vaqt tanlang yoki yozing (masalan <b>21:30</b>) 👇",
-                reply_markup=time_quick_kb("ntm"),
+                reply_markup=time_quick_kb("ntm", after=(now.hour, now.minute)),
             )
             return
         start_date = dt.isoformat()
@@ -224,32 +216,15 @@ async def got_time_btn(callback: CallbackQuery, state: FSMContext):
 
 @router.message(F.voice)
 async def voice_message(message: Message, state: FSMContext):
-    if not stt_available():
-        await message.answer(
-            "Ovozli xabarlarni hozircha tushunmayman 😅 Iltimos, yozib yuboring."
-        )
-        return
-
     # Ro'yxatdan o'tish kabi boshqa bosqichlarda ovoz qabul qilmaymiz
     current = await state.get_state()
     if current is not None and not current.startswith("NewReminder"):
         await message.answer("Iltimos, bu bosqichda yozib javob bering 😊")
         return
 
-    if message.voice.duration > 120:
-        await message.answer(
-            "Ovozli xabar juda uzun (2 daqiqagacha qabul qilaman) 😅"
-        )
-        return
-
-    wait_msg = await message.answer("🎙 Eshityapman...")
-    text = await transcribe_voice(message.bot, message.voice.file_id)
+    text = await voice_to_text(message)
     if not text:
-        await wait_msg.edit_text(
-            "Ovozni tushuna olmadim 😔 Qaytadan urinib ko'ring yoki yozib yuboring."
-        )
         return
-    await wait_msg.edit_text(f"🎙 Eshitdim: <i>«{esc(text)}»</i>")
 
     # AI (Gemini) bilan chuqur tahlil; ishlamasa oddiy regex'ga o'tadi
     parsed = await ai_parse_reminder(text) if ai_available() else None

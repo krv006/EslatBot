@@ -79,6 +79,24 @@ def next_weekday_run_date(weekday: int, hour: int, minute: int) -> datetime:
     return target + timedelta(days=days_ahead)
 
 
+def once_start(data: dict) -> datetime:
+    """'Bir marta' eslatmaning birinchi (va yagona) yuborish vaqti.
+
+    FSM'da yig'ilgan ma'lumotdan hisoblaydi: aniq sana > hafta kuni >
+    bugun/ertaga/indinga; kun umuman aytilmagan bo'lsa — bugun (vaqti hali
+    kelmagan bo'lsa) yoki ertaga. Yangi eslatma va referal oqimlari BIR XIL
+    hisoblashi uchun bitta joyda turadi.
+    """
+    hour, minute = data["hour"], data["minute"]
+    if data.get("once_date") is not None:
+        return date_run_date(data["once_date"], hour, minute)
+    if data.get("once_weekday") is not None:
+        return next_weekday_run_date(data["once_weekday"], hour, minute)
+    if data.get("once_offset") is not None:
+        return once_run_date(data["once_offset"], hour, minute)
+    return first_run_date(hour, minute)
+
+
 def schedule_reminder(bot: Bot, rem: dict) -> None:
     """Bitta eslatmani jadvalga qo'shadi (bor bo'lsa yangilaydi)."""
     freq = rem["freq"]

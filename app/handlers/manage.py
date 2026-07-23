@@ -3,6 +3,7 @@ from datetime import datetime, timedelta
 
 from aiogram import F, Router
 from aiogram.filters import Command
+from aiogram.fsm.context import FSMContext
 from aiogram.types import CallbackQuery, Message
 
 from app.database import db
@@ -30,7 +31,10 @@ def _format_line(rem: dict) -> str:
 
 @router.message(Command("list"))
 @router.message(F.text == BTN_LIST)
-async def list_reminders(message: Message):
+async def list_reminders(message: Message, state: FSMContext):
+    # Boshqa oqim (masalan referal) chala qolgan bo'lsa — tozalaymiz, aks holda
+    # keyingi yozilgan matnni o'sha oqim "o'g'irlab" ketadi
+    await state.clear()
     reminders = await db.get_user_reminders(message.from_user.id)
     if not reminders:
         await message.answer(

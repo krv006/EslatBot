@@ -53,9 +53,12 @@ plan_done_kb = ReplyKeyboardMarkup(
 )
 
 
-def time_quick_kb(prefix: str) -> InlineKeyboardMarkup:
+def time_quick_kb(prefix: str,
+                  after: tuple[int, int] | None = None) -> InlineKeyboardMarkup:
     """Ommabop vaqtlar — bir tegishda tanlash. `prefix` har oqim uchun har xil
-    (ntm=yangi, etm=tahrir, dtm=digest). Foydalanuvchi baribir o'zi yozishi ham mumkin.
+    (ntm=yangi, etm=tahrir, dtm=digest, rtm=referal). Foydalanuvchi baribir
+    o'zi yozishi ham mumkin. `after` berilsa, o'tib ketgan vaqt tugmalari
+    ko'rsatilmaydi ("bugun"ga kech soatda tanlab bo'lmaydigan tugma qolmasin).
     """
     times = [
         (6, 0), (7, 0), (8, 0),
@@ -64,6 +67,8 @@ def time_quick_kb(prefix: str) -> InlineKeyboardMarkup:
     ]
     rows, row = [], []
     for h, m in times:
+        if after is not None and (h, m) <= after:
+            continue
         row.append(InlineKeyboardButton(
             text=f"🕒 {h:02d}:{m:02d}", callback_data=f"{prefix}:{h}:{m}"))
         if len(row) == 3:

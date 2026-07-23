@@ -25,39 +25,59 @@ from app.keyboards.keyboards import (
     BTN_LIST,
     BTN_NEW,
     BTN_PLAN,
+    BTN_PLAN_DONE,
     BTN_REFERRAL,
     BTN_SETTINGS,
+    BTN_SKIP,
     referral_received_kb,
     referral_share_kb,
     time_quick_kb,
 )
 from app.scheduler.scheduler import (
     TZ,
-    date_run_date,
     first_run_date,
-    next_weekday_run_date,
-    once_run_date,
+    once_start,
     schedule_digest,
     schedule_reminder,
     unschedule_reminder,
 )
+from app.utils.ai import ai_available, ai_parse_reminder
 from app.utils.fmt import esc
 from app.utils.guards import get_owned_reminder
-from app.utils.parser import describe, parse_text, parse_time
-from app.utils.stt import stt_available, transcribe_voice
+from app.utils.parser import WEEKDAY_NAMES, describe, parse_text, parse_time
+from app.utils.stt import voice_to_text
 
 logger = logging.getLogger(__name__)
 
 router = Router()
 
-# Menyu tugmalari referal holatida ham ishlayverishi uchun ularni bu router
-# ushlamaydi (router ro'yxatda birinchi turadi).
-_MENU_BTNS = {BTN_NEW, BTN_LIST, BTN_PLAN, BTN_SETTINGS, BTN_REFERRAL}
+# Bu router ro'yxatda birinchi turadi, shuning uchun referal holatida ham
+# menyu tugmalari va buyruqlar o'z handlerlariga yetib borishi kerak:
+#  - _PASS_BTNS — boshqa oqimlarning reply-tugmalari (shu jumladan boshqa
+#    klaviaturalardan qolgan ⏭/✅ tugmalari) referal matni bo'lib qolmasin;
+#  - _KNOWN_CMDS — botda mavjud buyruqlar (/cancel start.py'da tozalaydi).
+_PASS_BTNS = {BTN_NEW, BTN_LIST, BTN_PLAN, BTN_SETTINGS, BTN_REFERRAL,
+              BTN_SKIP, BTN_PLAN_DONE}
+_KNOWN_CMDS = {"/start", "/new", "/list", "/help", "/cancel"}
+_PLAIN_TEXT = (F.text, ~F.text.startswith("/"), ~F.text.in_(_PASS_BTNS))
+
+
+def _is_known_cmd(text: str) -> bool:
+    """'/start ref_x' yoki '/cancel@EslatBot' ko'rinishlarini ham taniydi."""
+    return text.split()[0].split("@")[0] in _KNOWN_CMDS
 
 
 class Referral(StatesGroup):
     text = State()   # ulashiladigan eslatma matnini kutish
     time_ = State()  # matnda vaqt topilmasa — vaqtni kutish
+
+
+async def _not_registering(message: Message, state: FSMContext) -> bool:
+    """Ro'yxatdan o'tish tugamagan userni bu oqim «o'g'irlab» ketmasin —
+    aks holda start.py'dagi Registration holati (va deep-link'dan kelgan
+    pending_ref_token) yo'qolib qoladi."""
+    current = await state.get_state()
+    return not (current or "").startswith("Registration")
 
 
 def _new_token() -> str:
@@ -149,11 +169,11 @@ async def deliver_referral(bot, referral: dict, target_db_id: int,
     return "delivered"
 
 
-async def _send_link(message: Message, ref: dict) -> None:
+async def _send_link(message: Message, ref: dict, note: str = "") -> None:
     """Referal yozuvini yaratib, ulashish linkini yuboradi."""
     token = _new_token()
     await db.create_referral(ref["from_user_id"], ref, token)
-    me = await message.bot.get_me()
+    me = await message.bot.me()  # keshlangan — har safar API'ga bormaydi
     link = f"https://t.me/{me.username}?start=ref_{token}"
 
     await message.answer(
@@ -162,7 +182,7 @@ async def _send_link(message: Message, ref: dict) -> None:
         f"🔗 <b>Ulashish linki:</b>\n<code>{link}</code>\n\n"
         "Linkni <b>bitta</b> odamga yuboring — u ochishi bilan eslatma unga "
         "avtomatik qo'shiladi. <i>(Havola bir martalik: bir kishi qabul "
-        "qilgach kuchini yo'qotadi.)</i>",
+        f"qilgach kuchini yo'qotadi.)</i>{note}",
         reply_markup=referral_share_kb(link),
     )
 
@@ -175,25 +195,18 @@ async def _finalize(message: Message, state: FSMContext) -> None:
     weekday = data.get("weekday")
     monthday = data.get("monthday")
     start_date = None
+    note = ""
     now = datetime.now(TZ)
 
     if freq == "once":
-        if data.get("once_date") is not None:
-            dt = date_run_date(data["once_date"], data["hour"], data["minute"])
-        elif data.get("once_weekday") is not None:
-            dt = next_weekday_run_date(data["once_weekday"], data["hour"], data["minute"])
-        elif data.get("once_offset") is not None:
-            dt = once_run_date(data["once_offset"], data["hour"], data["minute"])
-        else:
-            # Kun aytilmagan: bugun (vaqti kelmagan bo'lsa) yoki ertaga
-            dt = first_run_date(data["hour"], data["minute"])
+        dt = once_start(data)
         if dt <= now:
             await state.set_state(Referral.time_)
-            await state.update_data(hour=None, minute=None)
             await message.answer(
                 "⚠️ Bu vaqt allaqachon o'tib ketdi 😅\n"
-                "Boshqa vaqt tanlang yoki yozing (masalan <b>21:30</b>) 👇",
-                reply_markup=time_quick_kb("rtm"),
+                "Hozirdan keyingi vaqtni tanlang yoki yozing (masalan <b>21:30</b>), "
+                "bekor qilish uchun /cancel 👇",
+                reply_markup=time_quick_kb("rtm", after=(now.hour, now.minute)),
             )
             return
         start_date = dt.isoformat()
@@ -201,8 +214,16 @@ async def _finalize(message: Message, state: FSMContext) -> None:
         start_date = first_run_date(data["hour"], data["minute"]).isoformat()
     elif freq == "weekly" and weekday is None:
         weekday = now.weekday()
+        note = (f"\n\nℹ️ Hafta kuni aytilmagani uchun <b>{WEEKDAY_NAMES[weekday].lower()}</b> "
+                "tanlandi. Boshqa kun kerak bo'lsa, matnda yozing (masalan «har juma»).")
     elif freq == "monthly" and monthday is None:
         monthday = now.day
+        note = (f"\n\nℹ️ Oy kuni aytilmagani uchun <b>{monthday}-kun</b> tanlandi. "
+                "Boshqa kun kerak bo'lsa, matnda yozing (masalan «har oyning 15-kuni»).")
+
+    if freq == "monthly" and monthday is not None and monthday > 28:
+        note += (f"\n\n⚠️ Ba'zi oylarda {monthday}-kun yo'q — bunday oylarda "
+                 "eslatma kelmaydi.")
 
     await state.clear()
     await _send_link(message, {
@@ -214,12 +235,12 @@ async def _finalize(message: Message, state: FSMContext) -> None:
         "hour": data["hour"],
         "minute": data["minute"],
         "start_date": start_date,
-    })
+    }, note=note)
 
 
 # --- Menyudagi «📤 Referal»: xabarni shu yerda yozish ---
 
-@router.message(F.text == BTN_REFERRAL)
+@router.message(F.text == BTN_REFERRAL, _not_registering)
 async def referral_menu(message: Message, state: FSMContext):
     await state.clear()
     await state.set_state(Referral.text)
@@ -232,8 +253,7 @@ async def referral_menu(message: Message, state: FSMContext):
     )
 
 
-@router.message(Referral.text, F.text, ~F.text.startswith("/"),
-                ~F.text.in_(_MENU_BTNS))
+@router.message(Referral.text, *_PLAIN_TEXT)
 async def got_referral_text(message: Message, state: FSMContext):
     await _handle_referral_text(message, state, message.text)
 
@@ -241,31 +261,29 @@ async def got_referral_text(message: Message, state: FSMContext):
 @router.message(Referral.text, F.voice)
 async def got_referral_voice(message: Message, state: FSMContext):
     """Ovozli xabar — matnga aylantirib, xuddi yozilgandek qayta ishlaymiz."""
-    if not stt_available():
-        await message.answer(
-            "Ovozli xabarlarni hozircha tushunmayman 😅 Iltimos, yozib yuboring."
-        )
-        return
-    if message.voice.duration > 120:
-        await message.answer("Ovozli xabar juda uzun (2 daqiqagacha qabul qilaman) 😅")
-        return
-    wait_msg = await message.answer("🎙 Eshityapman...")
-    text = await transcribe_voice(message.bot, message.voice.file_id)
+    text = await voice_to_text(message)
     if not text:
-        await wait_msg.edit_text(
-            "Ovozni tushuna olmadim 😔 Qaytadan urinib ko'ring yoki yozib yuboring."
+        return
+    # AI (Gemini) bilan chuqur tahlil; ishlamasa oddiy regex'ga o'tadi
+    parsed = await ai_parse_reminder(text) if ai_available() else None
+    await _handle_referral_text(message, state, text, parsed=parsed)
+
+
+async def _handle_referral_text(message: Message, state: FSMContext, raw: str,
+                                parsed: dict | None = None):
+    if parsed is None:
+        parsed = parse_text(raw)
+    if not parsed["text"]:
+        # Faqat vaqt yozilgan ("ertaga soat 10 da") — matnsiz eslatma bo'lmaydi
+        await message.answer(
+            "Eslatma matnini ham yozing ✍️ Masalan:\n"
+            "<i>«ertaga 10:00 da uchrashuv»</i>"
         )
         return
-    await wait_msg.edit_text(f"🎙 Eshitdim: <i>«{esc(text)}»</i>")
-    await _handle_referral_text(message, state, text)
-
-
-async def _handle_referral_text(message: Message, state: FSMContext, raw: str):
     user_db_id = await db.upsert_user(message.from_user)
-    parsed = parse_text(raw)
     await state.update_data(
         user_db_id=user_db_id,
-        text=parsed["text"] or raw.strip(),
+        text=parsed["text"],
         # Takrorlanish aytilmagan bo'lsa — bir martalik deb olamiz (eng ko'p holat)
         freq=parsed["freq"] or "once",
         weekday=parsed["weekday"],
@@ -287,8 +305,7 @@ async def _handle_referral_text(message: Message, state: FSMContext, raw: str):
     await _finalize(message, state)
 
 
-@router.message(Referral.time_, F.text, ~F.text.startswith("/"),
-                ~F.text.in_(_MENU_BTNS))
+@router.message(Referral.time_, *_PLAIN_TEXT)
 async def got_referral_time(message: Message, state: FSMContext):
     parsed = parse_time(message.text)
     if parsed is None:
@@ -311,6 +328,32 @@ async def got_referral_time_btn(callback: CallbackQuery, state: FSMContext):
     await _finalize(callback.message, state)
 
 
+# Holat allaqachon tugagan (bekor qilingan/yakunlangan) bo'lsa, eski xabarda
+# qolgan 🕒 tugma "aylanib" turmasin
+@router.callback_query(F.data.startswith("rtm:"))
+async def stale_time_btn(callback: CallbackQuery):
+    await callback.answer("Bu tugma eskirgan 😅 Qaytadan 📤 Referal bosing.")
+
+
+# Referal holatida noma'lum buyruq yoki matn bo'lmagan kontent (rasm, stiker,
+# kontakt...) kelsa — jim qolmaymiz, yo'l ko'rsatamiz
+@router.message(Referral.text, F.text.startswith("/"), ~F.text.func(_is_known_cmd))
+@router.message(Referral.time_, F.text.startswith("/"), ~F.text.func(_is_known_cmd))
+async def referral_unknown_cmd(message: Message):
+    await message.answer(
+        "Bunday buyruqni bilmayman 😅 Referalni bekor qilish uchun /cancel yozing."
+    )
+
+
+@router.message(Referral.text, ~F.text)
+@router.message(Referral.time_, ~F.text)
+async def referral_other_content(message: Message):
+    await message.answer(
+        "Iltimos, yozib yuboring ✍️ (ovozli xabar ham bo'ladi)\n"
+        "Bekor qilish uchun /cancel yozing."
+    )
+
+
 # --- Tayyor eslatma ostidagi «📤 Referal» tugmasi ---
 
 @router.callback_query(F.data.startswith("ref:"))
@@ -319,17 +362,23 @@ async def start_referral(callback: CallbackQuery, state: FSMContext):
     rem = await get_owned_reminder(callback, rid)
     if not rem:
         return
+
+    # Vaqti o'tib ketgan bir martalik eslatmani ulashishdan foyda yo'q —
+    # qabul qiluvchiga darhol "o'chirilgan" eslatma borar edi
+    if rem["freq"] == "once" and rem["start_date"]:
+        try:
+            if datetime.fromisoformat(rem["start_date"]) <= datetime.now(TZ):
+                await callback.answer(
+                    "Bu eslatmaning vaqti o'tib ketgan — avval ✏️ Tahrirlash "
+                    "orqali vaqtini yangilang.",
+                    show_alert=True,
+                )
+                return
+        except ValueError:
+            pass
+
     await state.clear()
-    await _send_link(callback.message, {
-        "from_user_id": rem["user_id"],
-        "text": rem["text"],
-        "freq": rem["freq"],
-        "weekday": rem["weekday"],
-        "monthday": rem["monthday"],
-        "hour": rem["hour"],
-        "minute": rem["minute"],
-        "start_date": rem["start_date"],
-    })
+    await _send_link(callback.message, {**rem, "from_user_id": rem["user_id"]})
     await callback.answer()
 
 

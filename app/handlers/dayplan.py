@@ -19,7 +19,7 @@ from app.keyboards.keyboards import BTN_PLAN, BTN_PLAN_DONE, main_menu, plan_don
 from app.scheduler.scheduler import TZ, once_run_date, schedule_reminder
 from app.utils.fmt import esc
 from app.utils.parser import parse_text
-from app.utils.stt import stt_available, transcribe_voice
+from app.utils.stt import voice_to_text
 
 router = Router()
 
@@ -82,17 +82,9 @@ async def plan_done(message: Message, state: FSMContext):
 
 @router.message(DayPlan.items, F.voice)
 async def plan_items_voice(message: Message, state: FSMContext):
-    if not stt_available():
-        await message.answer("Iltimos, rejalarni yozib yuboring 😊")
-        return
-    wait_msg = await message.answer("🎙 Eshityapman...")
-    text = await transcribe_voice(message.bot, message.voice.file_id)
+    text = await voice_to_text(message)
     if not text:
-        await wait_msg.edit_text(
-            "Ovozni tushuna olmadim 😔 Qaytadan urinib ko'ring yoki yozib yuboring."
-        )
         return
-    await wait_msg.edit_text(f"🎙 Eshitdim: <i>«{text}»</i>")
     await _process_plan_text(message, state, text)
 
 

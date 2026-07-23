@@ -47,6 +47,36 @@ def _extract_text(payload) -> str | None:
     return None
 
 
+async def voice_to_text(message) -> str | None:
+    """Ovozli xabarni to'liq muomala bilan matnga aylantiradi.
+
+    STT yo'qligi, uzunlik chegarasi va xatolarda foydalanuvchiga o'zi javob
+    berib None qaytaradi — barcha oqimlar (yangi eslatma, referal, kunlik
+    reja) bitta xulqda ishlashi uchun.
+    """
+    from app.utils.fmt import esc  # aylanma import bo'lmasligi uchun shu yerda
+
+    if not stt_available():
+        await message.answer(
+            "Ovozli xabarlarni hozircha tushunmayman 😅 Iltimos, yozib yuboring."
+        )
+        return None
+    if message.voice.duration > 120:
+        await message.answer(
+            "Ovozli xabar juda uzun (2 daqiqagacha qabul qilaman) 😅"
+        )
+        return None
+    wait_msg = await message.answer("🎙 Eshityapman...")
+    text = await transcribe_voice(message.bot, message.voice.file_id)
+    if not text:
+        await wait_msg.edit_text(
+            "Ovozni tushuna olmadim 😔 Qaytadan urinib ko'ring yoki yozib yuboring."
+        )
+        return None
+    await wait_msg.edit_text(f"🎙 Eshitdim: <i>«{esc(text)}»</i>")
+    return text
+
+
 async def transcribe_voice(bot: Bot, file_id: str) -> str | None:
     """Ovozli xabarni matnga aylantiradi. Xatoda None qaytaradi."""
     if not stt_available():
