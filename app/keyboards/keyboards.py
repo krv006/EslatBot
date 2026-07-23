@@ -172,20 +172,6 @@ def referral_received_kb(reminder_id: int) -> InlineKeyboardMarkup:
     )
 
 
-def referral_list_kb(reminders: list[dict]) -> InlineKeyboardMarkup:
-    """Referal menyusi: barcha eslatmalar BITTA xabarda, har biri bitta tugma.
-    (Ilgari har eslatma alohida xabar edi — ko'p bo'lsa chat to'lib ketardi.)
-    """
-    rows = []
-    for rem in reminders:
-        text = " ".join(str(rem["text"]).split())  # yangi qatorlarni olib tashlash
-        if len(text) > 30:
-            text = text[:29] + "…"
-        label = f"📝 {text} · {rem['hour']:02d}:{rem['minute']:02d}"
-        rows.append([InlineKeyboardButton(text=label, callback_data=f"ref:{rem['id']}")])
-    return InlineKeyboardMarkup(inline_keyboard=rows)
-
-
 def edit_menu_kb(reminder_id: int) -> InlineKeyboardMarkup:
     """«Tahrirlash» bosilganda: nimani o'zgartirishni tanlash."""
     return InlineKeyboardMarkup(

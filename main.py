@@ -37,8 +37,9 @@ async def main() -> None:
     bot = Bot(BOT_TOKEN, default=DefaultBotProperties(parse_mode=ParseMode.HTML))
     dp = Dispatcher()
 
-    # DIQQAT: referral.router start'dan oldin — Referral.target holatida kontaktni
-    # start.py'dagi umumiy kontakt-handleri ushlab qolmasligi uchun.
+    # DIQQAT: referral.router boshida — Referral holatlarida yozilgan matnni
+    # boshqa routerlar (ayniqsa reminders'dagi erkin matn handleri) ushlab
+    # qolmasligi uchun.
     # reminders.router oxirida — unda erkin matnni ushlaydigan handler bor.
     dp.include_routers(
         referral.router, start.router, manage.router, settings.router,
