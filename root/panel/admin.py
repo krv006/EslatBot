@@ -1,8 +1,8 @@
-from datetime import date, timedelta
+from datetime import date, datetime, timedelta
 
 from django.contrib import admin
 from django.db import connection
-from django.db.models import Count
+from django.db.models import Count, Q
 from django.utils.html import format_html
 
 from .models import BotUser, Referral, Reminder
@@ -26,6 +26,10 @@ def get_dashboard_stats() -> dict | None:
     """Bosh sahifa uchun umumiy statistika. Xato bo'lsa (jadval yo'q) — None."""
     today = date.today().isoformat()
     week_start = (date.today() - timedelta(days=6)).isoformat()
+    # Faollik chegaralari (last_seen — oxirgi interaksiya vaqti, ISO satr)
+    now = datetime.now()
+    d7 = (now - timedelta(days=7)).isoformat()
+    d30 = (now - timedelta(days=30)).isoformat()
     try:
         with connection.cursor() as cur:
             stats = {
@@ -45,7 +49,18 @@ def get_dashboard_stats() -> dict | None:
                 "rem_total": _scalar(cur, "SELECT COUNT(*) FROM reminders"),
                 "rem_active": _scalar(
                     cur, "SELECT COUNT(*) FROM reminders WHERE is_active=1"),
+                # --- Faollik (last_seen bo'yicha) ---
+                "active_7": _scalar(
+                    cur, "SELECT COUNT(*) FROM users WHERE last_seen >= %s", [d7]),
+                "active_30": _scalar(
+                    cur, "SELECT COUNT(*) FROM users WHERE last_seen >= %s", [d30]),
+                "inactive_30": _scalar(
+                    cur,
+                    "SELECT COUNT(*) FROM users "
+                    "WHERE last_seen IS NULL OR last_seen < %s", [d30]),
             }
+            # Sust = 7–30 kun oralig'ida ko'ringanlar
+            stats["sust"] = max(stats["active_30"] - stats["active_7"], 0)
             # Takror turlari bo'yicha (faol eslatmalar)
             cur.execute(
                 "SELECT freq, COUNT(*) FROM reminders WHERE is_active=1 GROUP BY freq")
@@ -82,6 +97,32 @@ admin.site.index = _index_with_stats
 admin.site.index_template = "admin/eslat_index.html"
 
 
+class UserActivityFilter(admin.SimpleListFilter):
+    """last_seen (oxirgi faollik) bo'yicha faol/sust/nofaol filtri."""
+    title = "Faollik holati"
+    parameter_name = "faollik"
+
+    def lookups(self, request, model_admin):
+        return [
+            ("faol", "🟢 Faol (7 kun ichida)"),
+            ("sust", "🟡 Sust (7–30 kun)"),
+            ("nofaol", "🔴 Nofaol (30+ kun / hech qachon)"),
+        ]
+
+    def queryset(self, request, queryset):
+        now = datetime.now()
+        d7 = now - timedelta(days=7)
+        d30 = now - timedelta(days=30)
+        v = self.value()
+        if v == "faol":
+            return queryset.filter(last_seen__gte=d7)
+        if v == "sust":
+            return queryset.filter(last_seen__gte=d30, last_seen__lt=d7)
+        if v == "nofaol":
+            return queryset.filter(Q(last_seen__lt=d30) | Q(last_seen__isnull=True))
+        return queryset
+
+
 class ReminderInline(admin.TabularInline):
     model = Reminder
     extra = 0
@@ -94,10 +135,13 @@ class ReminderInline(admin.TabularInline):
 class BotUserAdmin(admin.ModelAdmin):
     list_display = (
         "id", "name", "last_name", "tg_username", "phone_display", "tg_id",
-        "language_code", "is_premium", "registered", "digest_display",
+        "faollik", "language_code", "is_premium", "registered", "digest_display",
         "reminders_count", "created_at", "last_seen",
     )
-    list_filter = ("registered", "is_premium", "digest_enabled", "language_code")
+    list_filter = (
+        UserActivityFilter, "registered", "is_premium", "digest_enabled",
+        "language_code",
+    )
     search_fields = ("name", "last_name", "username", "phone", "tg_id")
     ordering = ("-id",)
     inlines = [ReminderInline]
@@ -127,6 +171,24 @@ class BotUserAdmin(admin.ModelAdmin):
         if obj.digest_enabled:
             return f"✅ {obj.digest_hour or 7:02d}:{obj.digest_minute or 0:02d}"
         return "🔕"
+
+    @admin.display(description="Faollik", ordering="last_seen")
+    def faollik(self, obj):
+        if not obj.last_seen:
+            return format_html('<span style="color:#ef4444">🔴 Hech qachon</span>')
+        days = (datetime.now() - obj.last_seen).days
+        if days <= 7:
+            label = "bugun" if days == 0 else f"{days} kun oldin"
+            return format_html(
+                '<span style="color:#22c55e">🟢 Faol</span>'
+                '<br><small style="color:#9ca3af">{}</small>', label)
+        if days <= 30:
+            return format_html(
+                '<span style="color:#f59e0b">🟡 Sust</span>'
+                '<br><small style="color:#9ca3af">{} kun oldin</small>', days)
+        return format_html(
+            '<span style="color:#ef4444">🔴 Nofaol</span>'
+            '<br><small style="color:#9ca3af">{} kun oldin</small>', days)
 
     @admin.display(description="Eslatmalari", ordering="_rc")
     def reminders_count(self, obj):

@@ -30,6 +30,9 @@
   .stat-accent-blue  .value { color: #3b82f6; }
   .stat-accent-amber .value { color: #f59e0b; }
   .stat-accent-violet .value { color: #8b5cf6; }
+  .stat-accent-red   .value { color: #ef4444; }
+  .stat-card a.stat-link { text-decoration: none; color: inherit; display: block; }
+  .stat-card a.stat-link:hover { opacity: .85; }
   .stat-section-title {
     font-size: 15px; font-weight: 700; margin: 4px 0 12px 0;
     display: flex; align-items: center; gap: 8px;
@@ -75,6 +78,30 @@
     <div class="value">{{ dashboard_stats.users_premium }}</div>
     <div class="sub">Telegram Premium</div>
   </div>
+</div>
+
+<div class="stat-section-title">👤 Foydalanuvchilar faolligi</div>
+<div class="stat-grid">
+  <a class="stat-link stat-card stat-accent-green" href="{% url 'admin:panel_botuser_changelist' %}?faollik=faol">
+    <div class="label">🟢 Faol</div>
+    <div class="value">{{ dashboard_stats.active_7 }}</div>
+    <div class="sub">oxirgi 7 kunda kirgan · ko'rish →</div>
+  </a>
+  <a class="stat-link stat-card stat-accent-amber" href="{% url 'admin:panel_botuser_changelist' %}?faollik=sust">
+    <div class="label">🟡 Sust</div>
+    <div class="value">{{ dashboard_stats.sust }}</div>
+    <div class="sub">7–30 kun oralig'ida · ko'rish →</div>
+  </a>
+  <a class="stat-link stat-card stat-accent-red" href="{% url 'admin:panel_botuser_changelist' %}?faollik=nofaol">
+    <div class="label">🔴 Nofaol</div>
+    <div class="value">{{ dashboard_stats.inactive_30 }}</div>
+    <div class="sub">30+ kun / hech qachon · ko'rish →</div>
+  </a>
+  <a class="stat-link stat-card stat-accent-blue" href="{% url 'admin:panel_botuser_changelist' %}">
+    <div class="label">📊 30 kun ichida faol</div>
+    <div class="value">{{ dashboard_stats.active_30 }}</div>
+    <div class="sub">jami {{ dashboard_stats.users_total }} tadan</div>
+  </a>
 </div>
 
 {% if dashboard_stats.by_freq %}
