@@ -2,12 +2,17 @@
 from datetime import datetime, timedelta
 
 from aiogram import F, Router
+from aiogram.exceptions import TelegramBadRequest
 from aiogram.filters import Command
 from aiogram.fsm.context import FSMContext
 from aiogram.types import CallbackQuery, Message
 
 from app.database import db
-from app.keyboards.keyboards import BTN_LIST, reminder_manage_kb
+from app.keyboards.keyboards import (
+    BTN_LIST,
+    reminder_manage_kb,
+    reminders_list_kb,
+)
 from app.scheduler.scheduler import (
     TZ,
     schedule_reminder,
@@ -29,6 +34,15 @@ def _format_line(rem: dict) -> str:
     return f"{status} <b>{esc(rem['text'])}</b>\n🕒 {when}"
 
 
+def _list_text(reminders: list[dict]) -> str:
+    active = sum(1 for r in reminders if r["is_active"])
+    return (
+        f"📋 <b>Sizning eslatmalaringiz</b> — {len(reminders)} ta "
+        f"(🟢 {active} faol)\n\n"
+        "Batafsil ko'rish yoki boshqarish uchun eslatmani tanlang 👇"
+    )
+
+
 @router.message(Command("list"))
 @router.message(F.text == BTN_LIST)
 async def list_reminders(message: Message, state: FSMContext):
@@ -43,12 +57,49 @@ async def list_reminders(message: Message, state: FSMContext):
             "<i>«har kuni 8 da dori ichishni eslat»</i>"
         )
         return
-    await message.answer(f"📋 Sizning eslatmalaringiz ({len(reminders)} ta):")
-    for rem in reminders:
-        await message.answer(
-            _format_line(rem),
-            reply_markup=reminder_manage_kb(rem["id"], bool(rem["is_active"])),
+    # Hammasini bitta xabarda — chat to'lib ketmasin
+    await message.answer(
+        _list_text(reminders),
+        reply_markup=reminders_list_kb(reminders),
+    )
+
+
+@router.callback_query(F.data == "noop")
+async def noop(callback: CallbackQuery):
+    await callback.answer()
+
+
+@router.callback_query(F.data.startswith("rlist:"))
+async def list_page(callback: CallbackQuery):
+    """Ro'yxatga qaytish / sahifalar orasida yurish — o'sha xabarni yangilaydi."""
+    page = int(callback.data.split(":")[1])
+    reminders = await db.get_user_reminders(callback.from_user.id)
+    if not reminders:
+        await callback.message.edit_text("Sizda eslatmalar qolmadi. 🤷")
+        await callback.answer()
+        return
+    try:
+        await callback.message.edit_text(
+            _list_text(reminders),
+            reply_markup=reminders_list_kb(reminders, page),
         )
+    except TelegramBadRequest:
+        pass  # "message is not modified" — allaqachon shu sahifada
+    await callback.answer()
+
+
+@router.callback_query(F.data.startswith("rshow:"))
+async def show_reminder(callback: CallbackQuery):
+    """Ro'yxatdan bitta eslatma tanlandi — o'sha xabarda tafsilotni ochamiz."""
+    rid = int(callback.data.split(":")[1])
+    rem = await get_owned_reminder(callback, rid)
+    if not rem:
+        return
+    await callback.message.edit_text(
+        _format_line(rem),
+        reply_markup=reminder_manage_kb(rid, bool(rem["is_active"])),
+    )
+    await callback.answer()
 
 
 @router.callback_query(F.data.startswith("toggle:"))
@@ -78,8 +129,16 @@ async def del_reminder(callback: CallbackQuery):
         return
     unschedule_reminder(rid)
     await db.delete_reminder(rid)
-    await callback.message.edit_text("🗑 Eslatma o'chirildi.")
-    await callback.answer()
+    reminders = await db.get_user_reminders(callback.from_user.id)
+    if reminders:
+        # O'chgach ro'yxatga qaytamiz — foydalanuvchi qolganini ko'radi
+        await callback.message.edit_text(
+            _list_text(reminders),
+            reply_markup=reminders_list_kb(reminders),
+        )
+    else:
+        await callback.message.edit_text("🗑 O'chirildi. Sizda boshqa eslatma yo'q.")
+    await callback.answer("🗑 O'chirildi")
 
 
 @router.callback_query(F.data.startswith("done:"))

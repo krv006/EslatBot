@@ -154,8 +154,49 @@ def reminder_manage_kb(reminder_id: int, is_active: bool) -> InlineKeyboardMarku
             [InlineKeyboardButton(text="✏️ Tahrirlash", callback_data=f"edit:{reminder_id}"),
              InlineKeyboardButton(text="📤 Referal", callback_data=f"ref:{reminder_id}")],
             [toggle, InlineKeyboardButton(text="🗑 O'chirish", callback_data=f"del:{reminder_id}")],
+            [InlineKeyboardButton(text="⬅️ Ro'yxatga qaytish", callback_data="rlist:0")],
         ]
     )
+
+
+def _short(text: str, limit: int = 38) -> str:
+    """Tugma yorlig'i uchun matnni bir qatorga siqib, qisqartiradi."""
+    text = " ".join(text.split())
+    return text if len(text) <= limit else text[: limit - 1] + "…"
+
+
+def reminders_list_kb(
+    reminders: list[dict], page: int = 0, per_page: int = 6
+) -> InlineKeyboardMarkup:
+    """Eslatmalar ro'yxati — bitta xabarda, har eslatma bitta tugma.
+    Ko'p bo'lsa sahifalab ko'rsatadi (◀️ ▶️)."""
+    total = len(reminders)
+    pages = max(1, (total + per_page - 1) // per_page)
+    page = max(0, min(page, pages - 1))
+    start = page * per_page
+    chunk = reminders[start : start + per_page]
+
+    rows: list[list[InlineKeyboardButton]] = []
+    for rem in chunk:
+        status = "🟢" if rem["is_active"] else "⏸"
+        rows.append([InlineKeyboardButton(
+            text=f"{status} {_short(rem['text'])}",
+            callback_data=f"rshow:{rem['id']}",
+        )])
+
+    if pages > 1:
+        nav: list[InlineKeyboardButton] = []
+        if page > 0:
+            nav.append(InlineKeyboardButton(
+                text="◀️", callback_data=f"rlist:{page - 1}"))
+        nav.append(InlineKeyboardButton(
+            text=f"{page + 1}/{pages}", callback_data="noop"))
+        if page < pages - 1:
+            nav.append(InlineKeyboardButton(
+                text="▶️", callback_data=f"rlist:{page + 1}"))
+        rows.append(nav)
+
+    return InlineKeyboardMarkup(inline_keyboard=rows)
 
 
 def referral_share_kb(link: str) -> InlineKeyboardMarkup:
