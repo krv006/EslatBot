@@ -92,15 +92,15 @@
     <div class="value">{{ dashboard_stats.sust }}</div>
     <div class="sub">7–30 kun oralig'ida · ko'rish →</div>
   </a>
+  <a class="stat-link stat-card stat-accent-blue" href="{% url 'admin:panel_botuser_changelist' %}?faollik=kutilmoqda">
+    <div class="label">🔵 Kutilmoqda</div>
+    <div class="value">{{ dashboard_stats.waiting }}</div>
+    <div class="sub">jim, lekin faol eslatmasi bor · ko'rish →</div>
+  </a>
   <a class="stat-link stat-card stat-accent-red" href="{% url 'admin:panel_botuser_changelist' %}?faollik=nofaol">
     <div class="label">🔴 Nofaol</div>
     <div class="value">{{ dashboard_stats.inactive_30 }}</div>
-    <div class="sub">30+ kun / hech qachon · ko'rish →</div>
-  </a>
-  <a class="stat-link stat-card stat-accent-blue" href="{% url 'admin:panel_botuser_changelist' %}">
-    <div class="label">📊 30 kun ichida faol</div>
-    <div class="value">{{ dashboard_stats.active_30 }}</div>
-    <div class="sub">jami {{ dashboard_stats.users_total }} tadan</div>
+    <div class="sub">jim va faol eslatmasi yo'q · ko'rish →</div>
   </a>
 </div>
 

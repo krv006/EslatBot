@@ -1,11 +1,12 @@
 from datetime import date, datetime, timedelta
 
-from django.contrib import admin
+from django import forms
+from django.contrib import admin, messages
 from django.db import connection
 from django.db.models import Count, Q
-from django.utils.html import format_html
+from django.utils.html import format_html, strip_tags
 
-from .models import BotUser, Referral, Reminder
+from .models import Broadcast, BotUser, Referral, Reminder
 
 admin.site.site_header = "🔔 EslatBot — Adminka"
 admin.site.site_title = "EslatBot"
@@ -54,10 +55,20 @@ def get_dashboard_stats() -> dict | None:
                     cur, "SELECT COUNT(*) FROM users WHERE last_seen >= %s", [d7]),
                 "active_30": _scalar(
                     cur, "SELECT COUNT(*) FROM users WHERE last_seen >= %s", [d30]),
+                # Kutilmoqda: jim (30+ kun/hech qachon) LEKIN faol eslatmasi bor
+                "waiting": _scalar(
+                    cur,
+                    "SELECT COUNT(*) FROM users u "
+                    "WHERE (u.last_seen IS NULL OR u.last_seen < %s) AND EXISTS "
+                    "(SELECT 1 FROM reminders r WHERE r.user_id=u.id AND r.is_active=1)",
+                    [d30]),
+                # Nofaol: jim VA faol eslatmasi yo'q
                 "inactive_30": _scalar(
                     cur,
-                    "SELECT COUNT(*) FROM users "
-                    "WHERE last_seen IS NULL OR last_seen < %s", [d30]),
+                    "SELECT COUNT(*) FROM users u "
+                    "WHERE (u.last_seen IS NULL OR u.last_seen < %s) AND NOT EXISTS "
+                    "(SELECT 1 FROM reminders r WHERE r.user_id=u.id AND r.is_active=1)",
+                    [d30]),
             }
             # Sust = 7–30 kun oralig'ida ko'ringanlar
             stats["sust"] = max(stats["active_30"] - stats["active_7"], 0)
@@ -98,7 +109,12 @@ admin.site.index_template = "admin/eslat_index.html"
 
 
 class UserActivityFilter(admin.SimpleListFilter):
-    """last_seen (oxirgi faollik) bo'yicha faol/sust/nofaol filtri."""
+    """Faollik filtri.
+
+    last_seen — oxirgi interaksiya (xabar YOKI tugma bosish). "Nofaol" deb
+    faqat last_seen eskirgan VA faol eslatmasi YO'Q userlar hisoblanadi.
+    Jim, lekin faol eslatmasi bor userlar (oyda bir / bir marta) — "Kutilmoqda"
+    (ular o'lik emas, eslatmasi ishlab turibdi)."""
     title = "Faollik holati"
     parameter_name = "faollik"
 
@@ -106,20 +122,25 @@ class UserActivityFilter(admin.SimpleListFilter):
         return [
             ("faol", "🟢 Faol (7 kun ichida)"),
             ("sust", "🟡 Sust (7–30 kun)"),
-            ("nofaol", "🔴 Nofaol (30+ kun / hech qachon)"),
+            ("kutilmoqda", "🔵 Kutilmoqda (jim, lekin faol eslatmasi bor)"),
+            ("nofaol", "🔴 Nofaol (jim va faol eslatmasi yo'q)"),
         ]
 
     def queryset(self, request, queryset):
         now = datetime.now()
         d7 = now - timedelta(days=7)
         d30 = now - timedelta(days=30)
+        eskirgan = Q(last_seen__lt=d30) | Q(last_seen__isnull=True)
         v = self.value()
         if v == "faol":
             return queryset.filter(last_seen__gte=d7)
         if v == "sust":
             return queryset.filter(last_seen__gte=d30, last_seen__lt=d7)
+        if v == "kutilmoqda":
+            return queryset.filter(eskirgan, reminders__is_active=True).distinct()
         if v == "nofaol":
-            return queryset.filter(Q(last_seen__lt=d30) | Q(last_seen__isnull=True))
+            return queryset.filter(eskirgan).exclude(
+                reminders__is_active=True).distinct()
         return queryset
 
 
@@ -148,7 +169,10 @@ class BotUserAdmin(admin.ModelAdmin):
     readonly_fields = ("tg_id", "created_at", "last_seen")
 
     def get_queryset(self, request):
-        return super().get_queryset(request).annotate(_rc=Count("reminders"))
+        return super().get_queryset(request).annotate(
+            _rc=Count("reminders"),
+            _arc=Count("reminders", filter=Q(reminders__is_active=True)),
+        )
 
     @admin.display(description="TG username")
     def tg_username(self, obj):
@@ -174,21 +198,28 @@ class BotUserAdmin(admin.ModelAdmin):
 
     @admin.display(description="Faollik", ordering="last_seen")
     def faollik(self, obj):
-        if not obj.last_seen:
-            return format_html('<span style="color:#ef4444">🔴 Hech qachon</span>')
-        days = (datetime.now() - obj.last_seen).days
-        if days <= 7:
+        has_active = getattr(obj, "_arc", 0) > 0
+        days = (datetime.now() - obj.last_seen).days if obj.last_seen else None
+        # Yaqinda ko'ringan (xabar yoki tugma) — faol / sust
+        if days is not None and days <= 7:
             label = "bugun" if days == 0 else f"{days} kun oldin"
             return format_html(
                 '<span style="color:#22c55e">🟢 Faol</span>'
                 '<br><small style="color:#9ca3af">{}</small>', label)
-        if days <= 30:
+        if days is not None and days <= 30:
             return format_html(
                 '<span style="color:#f59e0b">🟡 Sust</span>'
                 '<br><small style="color:#9ca3af">{} kun oldin</small>', days)
+        # Eskirgan / hech qachon — lekin faol eslatmasi bo'lsa "o'lik" emas
+        eski = "hech qachon" if days is None else f"{days} kun oldin"
+        if has_active:
+            return format_html(
+                '<span style="color:#3b82f6">🔵 Kutilmoqda</span>'
+                '<br><small style="color:#9ca3af">{} · {} faol eslatma</small>',
+                eski, obj._arc)
         return format_html(
             '<span style="color:#ef4444">🔴 Nofaol</span>'
-            '<br><small style="color:#9ca3af">{} kun oldin</small>', days)
+            '<br><small style="color:#9ca3af">{}</small>', eski)
 
     @admin.display(description="Eslatmalari", ordering="_rc")
     def reminders_count(self, obj):
@@ -250,3 +281,102 @@ class ReferralAdmin(admin.ModelAdmin):
         if obj.claimed_count and obj.claimed_count >= 1:
             return format_html('<span style="color:#22c55e">✅ Qabul qilingan</span>')
         return format_html('<span style="color:#f59e0b">⏳ Kutilmoqda</span>')
+
+
+# =====================================================================
+# 📢 Xabar yuborish (broadcast) — bot navbati orqali
+# =====================================================================
+
+class BroadcastForm(forms.ModelForm):
+    class Meta:
+        model = Broadcast
+        fields = ["target", "target_value", "text"]
+
+    def clean(self):
+        cleaned = super().clean()
+        target = cleaned.get("target")
+        val = (cleaned.get("target_value") or "").strip()
+        if target in ("username", "phone") and not val:
+            raise forms.ValidationError(
+                "Bitta userga yuborish uchun username yoki telefon raqamini kiriting."
+            )
+        if target == "all" and val:
+            # "Hammaga" tanlanганda alohida qiymat kerak emas — chalkashmasin
+            cleaned["target_value"] = ""
+        return cleaned
+
+
+@admin.register(Broadcast)
+class BroadcastAdmin(admin.ModelAdmin):
+    form = BroadcastForm
+    list_display = (
+        "id", "target_display", "qisqa_matn", "status_display",
+        "total", "sent", "failed", "created_at",
+    )
+    list_filter = ("status", "target")
+    ordering = ("-id",)
+    search_fields = ("text", "target_value")
+
+    _AUTO_FIELDS = ("status", "total", "sent", "failed", "error",
+                    "created_at", "sent_at")
+
+    def get_fieldsets(self, request, obj=None):
+        compose = ("✍️ Yangi xabar", {
+            "fields": ("target", "target_value", "text"),
+            "description": (
+                "Xabarni yozing va kimga yuborishni tanlang. "
+                "«Yuborish»dan so'ng bot uni navbatда, flood limitiga urilmasdan "
+                "yuboradi — holatini shu yerda kuzatasiz."
+            ),
+        })
+        if obj is None:
+            return (compose,)
+        return (
+            compose,
+            ("📊 Holat (avtomatik — bot to'ldiradi)", {
+                "fields": self._AUTO_FIELDS,
+            }),
+        )
+
+    def get_readonly_fields(self, request, obj=None):
+        if obj is not None:
+            # Navbatga tushgan/yuborilgan xabar tahrirlanmaydi — faqat ko'rish
+            return self._AUTO_FIELDS + ("target", "target_value", "text")
+        return self._AUTO_FIELDS
+
+    def has_change_permission(self, request, obj=None):
+        # Ko'rishga ruxsat (readonly forma), lekin qayta saqlashga hojat yo'q
+        return True
+
+    def save_model(self, request, obj, form, change):
+        obj.status = "pending"
+        super().save_model(request, obj, form, change)
+        messages.info(
+            request,
+            "✅ Xabar navbatga qo'yildi. Bot uni bir necha soniyada yuboradi "
+            "(bot ishlab turgan bo'lsa). Holat va yetkazilgan/yetmagan sonini "
+            "shu ro'yxatdan kuzating.",
+        )
+
+    @admin.display(description="Kimga")
+    def target_display(self, obj):
+        base = obj.get_target_display()
+        if obj.target != "all" and obj.target_value:
+            return f"{base}: {obj.target_value}"
+        return base
+
+    @admin.display(description="Matn")
+    def qisqa_matn(self, obj):
+        plain = strip_tags(obj.text or "").strip()
+        return (plain[:60] + "…") if len(plain) > 60 else (plain or "—")
+
+    @admin.display(description="Holat")
+    def status_display(self, obj):
+        colors = {
+            "pending": ("#f59e0b", "⏳ Navbatda"),
+            "sending": ("#3b82f6", "📤 Yuborilmoqda"),
+            "done": ("#22c55e", "✅ Yuborildi"),
+            "error": ("#ef4444", "❌ Xato"),
+        }
+        color, label = colors.get(obj.status, ("#6b7280", obj.status))
+        return format_html('<b style="color:{}">{}</b>', color, label)

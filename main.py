@@ -15,6 +15,8 @@ from app.scheduler.scheduler import (
     load_all_reminders,
     scheduler,
 )
+from app.utils.activity import ActivityMiddleware
+from app.utils.broadcaster import broadcast_worker
 from app.utils.sender import sender
 
 logging.basicConfig(
@@ -37,6 +39,10 @@ async def main() -> None:
     bot = Bot(BOT_TOKEN, default=DefaultBotProperties(parse_mode=ParseMode.HTML))
     dp = Dispatcher()
 
+    # Har interaksiyada (xabar VA tugma bosish) last_seen yangilanadi — faollikni
+    # to'g'ri o'lchash uchun (faqat tugma bosadigan userlar ham "faol" sanaladi)
+    dp.update.outer_middleware(ActivityMiddleware())
+
     # DIQQAT: referral.router boshida — Referral holatlarida yozilgan matnni
     # boshqa routerlar (ayniqsa reminders'dagi erkin matn handleri) ushlab
     # qolmasligi uchun.
@@ -49,6 +55,9 @@ async def main() -> None:
     # Chiquvchi xabar navbatini ishga tushiramiz (flood himoyasi) — jadval
     # ishga tushishidan oldin worker tayyor bo'lsin
     await sender.start(bot)
+
+    # Adminkadan yozilgan broadcast'larni yuboruvchi fon-jarayoni
+    asyncio.create_task(broadcast_worker(), name="broadcast-worker")
 
     scheduler.start()
     await load_all_reminders(bot)

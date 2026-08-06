@@ -1,6 +1,7 @@
 """Bot jadvallariga 'oyna' — managed=False, ya'ni Django bu jadvallarni
 yaratmaydi va o'zgartirmaydi, faqat o'qiydi/yozadi."""
 from django.db import models
+from django_ckeditor_5.fields import CKEditor5Field
 
 FREQ_CHOICES = [
     ("once", "📌 Bir marta"),
@@ -70,6 +71,50 @@ class Reminder(models.Model):
     @property
     def time_str(self):
         return f"{self.hour:02d}:{self.minute:02d}"
+
+
+BROADCAST_TARGET_CHOICES = [
+    ("all", "📢 Hammaga (barcha foydalanuvchilar)"),
+    ("username", "👤 Bitta userga — username bo'yicha"),
+    ("phone", "📱 Bitta userga — telefon bo'yicha"),
+]
+
+BROADCAST_STATUS_CHOICES = [
+    ("pending", "⏳ Navbatda"),
+    ("sending", "📤 Yuborilmoqda"),
+    ("done", "✅ Yuborildi"),
+    ("error", "❌ Xato"),
+]
+
+
+class Broadcast(models.Model):
+    """Admin paneldan yuboriladigan xabar. Django faqat 'pending' yozadi;
+    haqiqiy yuborishni bot jarayoni (flood-himoyali sender) bajaradi."""
+    text = CKEditor5Field("Xabar matni", config_name="broadcast")
+    target = models.TextField(
+        "Kimga", choices=BROADCAST_TARGET_CHOICES, default="all")
+    target_value = models.TextField(
+        "Username yoki Telefon", blank=True, null=True,
+        help_text="Faqat 'username' yoki 'telefon' tanlaganda to'ldiring. "
+                  "Masalan: @ali yoki +998901234567",
+    )
+    status = models.TextField(
+        "Holat", choices=BROADCAST_STATUS_CHOICES, default="pending")
+    total = models.IntegerField("Jami qabul qiluvchi", default=0)
+    sent = models.IntegerField("Yuborildi", default=0)
+    failed = models.IntegerField("Yetib bormadi", default=0)
+    error = models.TextField("Xato izohi", blank=True, null=True)
+    created_at = models.DateTimeField("Yaratilgan", auto_now_add=True)
+    sent_at = models.DateTimeField("Yuborilgan vaqti", blank=True, null=True)
+
+    class Meta:
+        managed = False
+        db_table = "broadcasts"
+        verbose_name = "Xabar yuborish"
+        verbose_name_plural = "📢 Xabar yuborish"
+
+    def __str__(self):
+        return f"#{self.id} — {self.get_target_display()} [{self.status}]"
 
 
 class Referral(models.Model):

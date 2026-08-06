@@ -40,30 +40,42 @@ class Sender:
         if self._task is None or self._task.done():
             self._task = asyncio.create_task(self._worker(), name="sender-worker")
 
-    async def enqueue(self, chat_id: int, text: str, reply_markup=None) -> None:
-        """Xabarni navbatga qo'yadi (bloklamaydi — navbat cheksiz)."""
-        await self._q.put((chat_id, text, reply_markup))
+    async def enqueue(self, chat_id: int, text: str, reply_markup=None,
+                      on_result=None) -> None:
+        """Xabarni navbatga qo'yadi (bloklamaydi — navbat cheksiz).
+
+        on_result — ixtiyoriy callback(ok: bool). Xabar yuborilgach chaqiriladi
+        (broadcast uchun yetkazilgan/yetmagan sonini aniq sanash imkonini beradi).
+        """
+        await self._q.put((chat_id, text, reply_markup, on_result))
 
     def pending(self) -> int:
         return self._q.qsize()
 
     async def _worker(self) -> None:
         while True:
-            chat_id, text, markup = await self._q.get()
+            chat_id, text, markup, on_result = await self._q.get()
+            ok = False
             try:
-                await self._send_one(chat_id, text, markup)
+                ok = await self._send_one(chat_id, text, markup)
             except Exception:
                 logger.exception("Sender: kutilmagan xato (chat_id=%s)", chat_id)
             finally:
                 self._q.task_done()
+                if on_result is not None:
+                    try:
+                        on_result(ok)
+                    except Exception:
+                        logger.exception("Sender: on_result callback xatosi")
             # Bir maromda yuborish — flood limitiga urilmaslik uchun
             await asyncio.sleep(self._interval)
 
-    async def _send_one(self, chat_id: int, text: str, markup) -> None:
+    async def _send_one(self, chat_id: int, text: str, markup) -> bool:
+        """True — yuborildi; False — yuborilmadi (bloklagan / xato / urinishlar tugadi)."""
         for _ in range(3):
             try:
                 await self._bot.send_message(chat_id, text, reply_markup=markup)
-                return
+                return True
             except TelegramRetryAfter as e:
                 logger.warning("Flood limit: %s sek kutamiz (chat=%s)",
                                e.retry_after, chat_id)
@@ -72,11 +84,12 @@ class Sender:
                 # User botni bloklagan / chatni o'chirgan — qayta urinmaymiz
                 logger.info("Bloklangan user, nofaol qilinadi: chat=%s", chat_id)
                 await db.deactivate_user_by_tg(chat_id)
-                return
+                return False
             except TelegramBadRequest as e:
                 logger.warning("Yuborilmadi (BadRequest, chat=%s): %s", chat_id, e)
-                return
+                return False
         logger.error("3 urinishdan keyin ham yuborilmadi: chat=%s", chat_id)
+        return False
 
 
 # Butun ilova uchun yagona sender (scheduler shundan foydalanadi)

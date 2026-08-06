@@ -58,6 +58,8 @@ INSTALLED_APPS = [
     "django.contrib.sessions",
     "django.contrib.messages",
     "django.contrib.staticfiles",
+    # Boy matn muharriri (broadcast xabari uchun)
+    "django_ckeditor_5",
 ]
 
 MIDDLEWARE = [
@@ -106,11 +108,38 @@ USE_TZ = False  # bot vaqtlarni mahalliy vaqtda saqlaydi
 
 STATIC_URL = "static/"
 STATIC_ROOT = BASE_DIR / "staticfiles"
+MEDIA_URL = "media/"
+MEDIA_ROOT = BASE_DIR / "media"
 STORAGES = {
     "default": {"BACKEND": "django.core.files.storage.FileSystemStorage"},
     "staticfiles": {"BACKEND": "whitenoise.storage.CompressedStaticFilesStorage"},
 }
 DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"
+
+# =====================================================================
+# CKEditor 5 — broadcast xabari uchun boy matn muharriri
+# =====================================================================
+customColorPalette = []
+CKEDITOR_5_FILE_STORAGE = "django.core.files.storage.FileSystemStorage"
+CKEDITOR_5_CONFIGS = {
+    "default": {
+        "toolbar": [
+            "bold", "italic", "underline", "strikethrough", "|",
+            "link", "bulletedList", "numberedList", "blockQuote", "code", "|",
+            "removeFormat", "undo", "redo",
+        ],
+    },
+    # Broadcast maydoni uchun — Telegram qo'llab-quvvatlaydigan formatlar
+    "broadcast": {
+        "toolbar": [
+            "bold", "italic", "underline", "strikethrough", "|",
+            "link", "bulletedList", "numberedList", "blockQuote", "code", "|",
+            "removeFormat", "undo", "redo",
+        ],
+        "height": 320,
+        "width": "100%",
+    },
+}
 
 # =====================================================================
 # Jazzmin — admin panel ko'rinishi (mavzu)

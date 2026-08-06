@@ -67,6 +67,24 @@ CREATE TABLE IF NOT EXISTS referrals (
     created_at TEXT,
     claimed_count INTEGER NOT NULL DEFAULT 0   -- nechta odam qabul qilgani
 );
+
+-- Broadcast: adminkadan yuboriladigan ommaviy/yakka xabar.
+-- Django faqat 'pending' yozadi; bot o'qib flood-himoyali sender bilan yuboradi.
+CREATE TABLE IF NOT EXISTS broadcasts (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    text TEXT NOT NULL,                       -- CKEditor HTML
+    target TEXT NOT NULL DEFAULT 'all',       -- all | username | phone
+    target_value TEXT,                        -- username yoki telefon (yakka uchun)
+    status TEXT NOT NULL DEFAULT 'pending',   -- pending | sending | done | error
+    total INTEGER NOT NULL DEFAULT 0,
+    sent INTEGER NOT NULL DEFAULT 0,
+    failed INTEGER NOT NULL DEFAULT 0,
+    error TEXT,
+    created_at TEXT,
+    sent_at TEXT
+);
+
+CREATE INDEX IF NOT EXISTS idx_broadcast_status ON broadcasts (status);
 """
 
 
@@ -156,6 +174,18 @@ async def get_user(tg_id: int) -> dict | None:
         cur = await _db().execute("SELECT * FROM users WHERE tg_id = ?", (tg_id,))
         row = await cur.fetchone()
     return dict(row) if row else None
+
+
+async def touch_last_seen(tg_id: int) -> None:
+    """Faollik belgisi — HAR QANDAY interaksiyada (xabar VA tugma bosish) chaqiriladi.
+    Yengil UPDATE: user hali yo'q bo'lsa (birinchi /start) 0 qatorga ta'sir qiladi,
+    keyin start handleri upsert qiladi. Tugma bosgan userlar ham 'faol' sanaladi."""
+    async with _lock:
+        await _db().execute(
+            "UPDATE users SET last_seen = ? WHERE tg_id = ?",
+            (datetime.now().isoformat(), tg_id),
+        )
+        await _db().commit()
 
 
 async def set_name(tg_id: int, name: str) -> None:
@@ -389,3 +419,73 @@ async def try_claim_referral(referral_id: int) -> bool:
         )
         await _db().commit()
         return cur.rowcount == 1
+
+
+# --- Broadcast (adminkadan ommaviy/yakka xabar) ---
+
+async def get_next_pending_broadcast() -> dict | None:
+    """Eng eski 'pending' broadcast'ni oladi (bir vaqtda bittasi qayta ishlanadi).
+    Jadval hali yaratilmagan bo'lsa (eski baza) — jimgina None."""
+    try:
+        async with _lock:
+            cur = await _db().execute(
+                "SELECT * FROM broadcasts WHERE status = 'pending' "
+                "ORDER BY id LIMIT 1"
+            )
+            row = await cur.fetchone()
+        return dict(row) if row else None
+    except Exception:
+        return None
+
+
+async def mark_broadcast_sending(broadcast_id: int, total: int) -> None:
+    async with _lock:
+        await _db().execute(
+            "UPDATE broadcasts SET status = 'sending', total = ?, sent = 0, "
+            "failed = 0 WHERE id = ?",
+            (total, broadcast_id),
+        )
+        await _db().commit()
+
+
+async def update_broadcast_progress(broadcast_id: int, sent: int, failed: int) -> None:
+    async with _lock:
+        await _db().execute(
+            "UPDATE broadcasts SET sent = ?, failed = ? WHERE id = ?",
+            (sent, failed, broadcast_id),
+        )
+        await _db().commit()
+
+
+async def finish_broadcast(
+    broadcast_id: int, sent: int, failed: int,
+    status: str = "done", error: str | None = None,
+) -> None:
+    async with _lock:
+        await _db().execute(
+            "UPDATE broadcasts SET status = ?, sent = ?, failed = ?, error = ?, "
+            "sent_at = ? WHERE id = ?",
+            (status, sent, failed, error, datetime.now().isoformat(), broadcast_id),
+        )
+        await _db().commit()
+
+
+async def get_all_user_ids() -> list[int]:
+    """Barcha foydalanuvchilarning tg_id'lari (broadcast=all uchun)."""
+    async with _lock:
+        cur = await _db().execute("SELECT tg_id FROM users")
+        rows = await cur.fetchall()
+    return [r[0] for r in rows]
+
+
+async def get_user_by_username(username: str) -> dict | None:
+    """Username bo'yicha user (bosh '@' va katta-kichik harf farqi hisobga olinadi)."""
+    uname = username.strip().lstrip("@").lower()
+    if not uname:
+        return None
+    async with _lock:
+        cur = await _db().execute(
+            "SELECT * FROM users WHERE LOWER(username) = ?", (uname,)
+        )
+        row = await cur.fetchone()
+    return dict(row) if row else None
