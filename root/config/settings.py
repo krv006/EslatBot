@@ -48,7 +48,9 @@ if os.getenv("DJANGO_HTTPS", "0") == "1":
     SECURE_PROXY_SSL_HEADER = ("HTTP_X_FORWARDED_PROTO", "https")
 
 INSTALLED_APPS = [
-    # panel birinchi — admin shablonlarini (favicon, branding) almashtirish uchun
+    # jazzmin django.contrib.admin'dan OLDIN turishi shart (admin mavzusi)
+    "jazzmin",
+    # panel — o'zining maxsus shablonlari (dashboard: eslat_index.html) uchun
     "panel",
     "django.contrib.admin",
     "django.contrib.auth",
@@ -109,3 +111,46 @@ STORAGES = {
     "staticfiles": {"BACKEND": "whitenoise.storage.CompressedStaticFilesStorage"},
 }
 DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"
+
+# =====================================================================
+# Jazzmin — admin panel ko'rinishi (mavzu)
+# =====================================================================
+JAZZMIN_SETTINGS = {
+    "site_title": "EslatBot",
+    "site_header": "EslatBot",
+    "site_brand": "🔔 EslatBot",
+    "site_logo": None,
+    "site_icon": "panel/favicon.png",
+    "welcome_sign": "EslatBot — Boshqaruv paneli",
+    "copyright": "EslatBot",
+    "search_model": ["panel.BotUser", "panel.Reminder"],
+    # Yuqori menyu
+    "topmenu_links": [
+        {"name": "Bosh sahifa", "url": "admin:index", "permissions": ["auth.view_user"]},
+        {"model": "panel.BotUser"},
+    ],
+    # Chap menyu tartibi va ikonkalari
+    "order_with_respect_to": ["panel", "auth"],
+    "icons": {
+        "auth": "fas fa-users-cog",
+        "auth.user": "fas fa-user",
+        "auth.Group": "fas fa-users",
+        "panel.BotUser": "fas fa-user-friends",
+        "panel.Reminder": "fas fa-bell",
+        "panel.Referral": "fas fa-share-nodes",
+    },
+    "default_icon_parents": "fas fa-chevron-circle-right",
+    "default_icon_children": "fas fa-circle",
+    "related_modal_active": True,
+    "show_ui_builder": False,
+}
+
+JAZZMIN_UI_TWEAKS = {
+    "theme": "flatly",
+    "dark_mode_theme": "darkly",
+    "navbar": "navbar-dark",
+    "navbar_small_text": False,
+    "sidebar": "sidebar-dark-primary",
+    "sidebar_nav_flat_style": True,
+    "actions_sticky_top": True,
+}
