@@ -12,6 +12,7 @@ from app.database import db
 from app.handlers import (
     dayplan,
     edit,
+    fallback,
     manage,
     materials,
     notes,
@@ -62,6 +63,8 @@ async def main() -> None:
         referral.router, start.router, manage.router, settings.router,
         dayplan.router, edit.router, tasks.router, notes.router,
         materials.router, reminders.router,
+        # fallback ENG OXIRIDA — hech kim ushlamagan xabarni oladi
+        fallback.router,
     )
 
     # Chiquvchi xabar navbatini ishga tushiramiz (flood himoyasi) — jadval
