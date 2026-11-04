@@ -112,6 +112,32 @@
   {% endfor %}
 </div>
 {% endif %}
+
+{% if dashboard_stats.has_modules %}
+<div class="stat-section-title">🗂 Boshqa modullar</div>
+<div class="stat-grid">
+  <a class="stat-link stat-card stat-accent-blue" href="{% url 'admin:panel_task_changelist' %}">
+    <div class="label">✅ Vazifalar</div>
+    <div class="value">{{ dashboard_stats.tasks_total }}</div>
+    <div class="sub">{{ dashboard_stats.tasks_done }} bajarilgan · {{ dashboard_stats.tasks_overdue }} muddati o'tgan</div>
+  </a>
+  <a class="stat-link stat-card stat-accent-violet" href="{% url 'admin:panel_note_changelist' %}">
+    <div class="label">🗒 Qaydlar</div>
+    <div class="value">{{ dashboard_stats.notes_total }}</div>
+    <div class="sub">jami saqlangan qaydlar</div>
+  </a>
+  <a class="stat-link stat-card stat-accent-amber" href="{% url 'admin:panel_material_changelist' %}">
+    <div class="label">📚 Materiallar</div>
+    <div class="value">{{ dashboard_stats.mat_active }}</div>
+    <div class="sub">faol · {{ dashboard_stats.mat_done }} yakunlangan</div>
+  </a>
+  <a class="stat-link stat-card stat-accent-green" href="{% url 'admin:panel_habitlog_changelist' %}">
+    <div class="label">🔥 Bugun bajarilgan odatlar</div>
+    <div class="value">{{ dashboard_stats.habits_today }}</div>
+    <div class="sub">bugungi «bajarildi» belgilari</div>
+  </a>
+</div>
+{% endif %}
 {% endif %}
 
 {{ block.super }}

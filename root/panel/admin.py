@@ -99,6 +99,25 @@ def get_dashboard_stats() -> dict | None:
                     cur, "SELECT COUNT(*) FROM referrals WHERE claimed_count>=1")
             except Exception:
                 stats["ref_total"] = stats["ref_claimed"] = 0
+            # Taskly modullari (jadvallar yangi — alohida himoyalanadi)
+            try:
+                stats["tasks_total"] = _scalar(cur, "SELECT COUNT(*) FROM tasks")
+                stats["tasks_done"] = _scalar(
+                    cur, "SELECT COUNT(*) FROM tasks WHERE is_done=1")
+                stats["tasks_overdue"] = _scalar(
+                    cur, "SELECT COUNT(*) FROM tasks WHERE is_done=0 AND "
+                    "due_date IS NOT NULL AND due_date < %s", [today])
+                stats["notes_total"] = _scalar(cur, "SELECT COUNT(*) FROM notes")
+                stats["mat_active"] = _scalar(
+                    cur, "SELECT COUNT(*) FROM materials WHERE status='active'")
+                stats["mat_done"] = _scalar(
+                    cur, "SELECT COUNT(*) FROM materials WHERE status='done'")
+                stats["habits_today"] = _scalar(
+                    cur, "SELECT COUNT(*) FROM habit_logs WHERE log_date=%s "
+                    "AND status='done'", [today])
+                stats["has_modules"] = True
+            except Exception:
+                stats["has_modules"] = False
         return stats
     except Exception:
         return None
@@ -397,12 +416,37 @@ class BroadcastAdmin(admin.ModelAdmin):
 
 @admin.register(Task)
 class TaskAdmin(admin.ModelAdmin):
-    list_display = ("id", "title", "user", "priority", "due_date", "is_done",
-                    "done_at", "created_at")
+    list_display = ("id", "title", "user", "ustuvorlik", "muddat", "holat", "created_at")
     list_filter = ("is_done", "priority")
     search_fields = ("title", "user__name", "user__username", "user__tg_id")
     ordering = ("-id",)
     list_select_related = ("user",)
+
+    @admin.display(description="Ustuvorlik", ordering="priority")
+    def ustuvorlik(self, obj):
+        m = {"high": ("#ef4444", "🔴 Yuqori"), "normal": ("#f59e0b", "🟡 O'rta"),
+             "low": ("#9ca3af", "⚪ Past")}
+        c, l = m.get(obj.priority, ("#6b7280", obj.priority))
+        return format_html('<b style="color:{}">{}</b>', c, l)
+
+    @admin.display(description="Muddat", ordering="due_date")
+    def muddat(self, obj):
+        if not obj.due_date:
+            return format_html('<span style="color:#9ca3af">—</span>')
+        if obj.is_done:
+            return obj.due_date
+        today = date.today().isoformat()
+        if obj.due_date < today:
+            return format_html('<b style="color:#ef4444">⚠️ {} (o\'tgan)</b>', obj.due_date)
+        if obj.due_date == today:
+            return format_html('<b style="color:#f59e0b">📅 {} (bugun)</b>', obj.due_date)
+        return format_html('<span style="color:#22c55e">{}</span>', obj.due_date)
+
+    @admin.display(description="Holat", ordering="is_done")
+    def holat(self, obj):
+        if obj.is_done:
+            return format_html('<span style="color:#22c55e">✅ Bajarilgan</span>')
+        return format_html('<span style="color:#6b7280">⬜ Jarayonda</span>')
 
 
 @admin.register(Note)
@@ -414,7 +458,7 @@ class NoteAdmin(admin.ModelAdmin):
 
     @admin.display(description="Matn")
     def qisqa(self, obj):
-        t = (obj.text or "").strip()
+        t = " ".join((obj.text or "").split())
         return (t[:70] + "…") if len(t) > 70 else t
 
 
@@ -429,15 +473,24 @@ class MaterialAdmin(admin.ModelAdmin):
     @admin.display(description="Jarayon")
     def jarayon(self, obj):
         if obj.total:
-            pct = int(min(obj.current, obj.total) * 100 / obj.total)
-            return f"{obj.current}/{obj.total} ({pct}%)"
-        return f"{obj.current}"
+            cur = min(obj.current, obj.total)
+            pct = int(cur * 100 / obj.total)
+            color = "#22c55e" if obj.status == "done" else "#3b82f6"
+            return format_html(
+                '<b style="color:{}">{}/{} ({}%)</b>', color, obj.current, obj.total, pct)
+        return format_html('<span style="color:#9ca3af">{} (hajmsiz)</span>', obj.current)
 
 
 @admin.register(HabitLog)
 class HabitLogAdmin(admin.ModelAdmin):
-    list_display = ("id", "reminder", "log_date", "status", "created_at")
+    list_display = ("id", "reminder", "log_date", "natija", "created_at")
     list_filter = ("status",)
     search_fields = ("reminder__text",)
     ordering = ("-log_date", "-id")
     list_select_related = ("reminder",)
+
+    @admin.display(description="Natija", ordering="status")
+    def natija(self, obj):
+        if obj.status == "done":
+            return format_html('<b style="color:#22c55e">✅ Bajarildi</b>')
+        return format_html('<b style="color:#f59e0b">⏭ O\'tkazildi</b>')
