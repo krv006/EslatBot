@@ -124,6 +124,22 @@ CREATE TABLE IF NOT EXISTS notes (
 );
 
 CREATE INDEX IF NOT EXISTS idx_notes_user ON notes (user_id);
+
+-- Materiallar: davomli o'qish/o'rganish obyekti (kitob, kurs, Qur'on xatmi).
+-- Joriy nuqta (current) yangilanadi; umumiy hajm (total) ma'lum bo'lsa foiz ko'rsatiladi.
+CREATE TABLE IF NOT EXISTS materials (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    user_id INTEGER NOT NULL REFERENCES users (id),
+    title TEXT NOT NULL,
+    mtype TEXT NOT NULL DEFAULT 'book',  -- book | course | quran | other
+    unit TEXT,                           -- bet | dars | ... (ixtiyoriy)
+    total INTEGER,                       -- umumiy hajm (ixtiyoriy)
+    current INTEGER NOT NULL DEFAULT 0,  -- joriy nuqta
+    status TEXT NOT NULL DEFAULT 'active',  -- active | paused | done
+    created_at TEXT
+);
+
+CREATE INDEX IF NOT EXISTS idx_materials_user ON materials (user_id);
 """
 
 
@@ -677,4 +693,58 @@ async def get_note(note_id: int) -> dict | None:
 async def delete_note(note_id: int) -> None:
     async with _lock:
         await _db().execute("DELETE FROM notes WHERE id = ?", (note_id,))
+        await _db().commit()
+
+
+# --- Materiallar (o'qish/o'rganish) ---
+
+async def add_material(user_id: int, title: str, mtype: str = "book",
+                       unit: str | None = None, total: int | None = None) -> int:
+    async with _lock:
+        cur = await _db().execute(
+            """INSERT INTO materials (user_id, title, mtype, unit, total, created_at)
+               VALUES (?, ?, ?, ?, ?, ?)""",
+            (user_id, title, mtype, unit, total, datetime.now().isoformat()),
+        )
+        await _db().commit()
+        return cur.lastrowid
+
+
+async def get_user_materials(tg_id: int) -> list[dict]:
+    async with _lock:
+        cur = await _db().execute(
+            """SELECT m.* FROM materials m JOIN users u ON u.id = m.user_id
+               WHERE u.tg_id = ?
+               ORDER BY (m.status='done'), (m.status='paused'), m.id DESC""",
+            (tg_id,),
+        )
+        rows = await cur.fetchall()
+    return [dict(r) for r in rows]
+
+
+async def get_material(material_id: int) -> dict | None:
+    async with _lock:
+        cur = await _db().execute(
+            "SELECT m.*, u.tg_id FROM materials m JOIN users u ON u.id = m.user_id "
+            "WHERE m.id = ?", (material_id,),
+        )
+        row = await cur.fetchone()
+    return dict(row) if row else None
+
+
+async def update_material(material_id: int, **fields) -> None:
+    allowed = {"title", "mtype", "unit", "total", "current", "status"}
+    fields = {k: v for k, v in fields.items() if k in allowed}
+    if not fields:
+        return
+    cols = ", ".join(f"{k} = ?" for k in fields)
+    async with _lock:
+        await _db().execute(f"UPDATE materials SET {cols} WHERE id = ?",
+                            list(fields.values()) + [material_id])
+        await _db().commit()
+
+
+async def delete_material(material_id: int) -> None:
+    async with _lock:
+        await _db().execute("DELETE FROM materials WHERE id = ?", (material_id,))
         await _db().commit()

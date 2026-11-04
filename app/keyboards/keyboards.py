@@ -12,6 +12,7 @@ BTN_NEW = "➕ Yangi eslatma"
 BTN_LIST = "📋 Eslatmalarim"
 BTN_TASKS = "✅ Vazifalar"
 BTN_NOTES = "🗒 Qaydlar"
+BTN_MATERIALS = "📚 Materiallar"
 BTN_PLAN = "📝 Kunlik reja"
 BTN_SETTINGS = "⚙️ Sozlamalar"
 BTN_REFERRAL = "📤 Referal"
@@ -22,8 +23,8 @@ main_menu = ReplyKeyboardMarkup(
     keyboard=[
         [KeyboardButton(text=BTN_NEW), KeyboardButton(text=BTN_LIST)],
         [KeyboardButton(text=BTN_TASKS), KeyboardButton(text=BTN_NOTES)],
-        [KeyboardButton(text=BTN_PLAN), KeyboardButton(text=BTN_SETTINGS)],
-        [KeyboardButton(text=BTN_REFERRAL)],
+        [KeyboardButton(text=BTN_MATERIALS), KeyboardButton(text=BTN_PLAN)],
+        [KeyboardButton(text=BTN_SETTINGS), KeyboardButton(text=BTN_REFERRAL)],
     ],
     resize_keyboard=True,
 )
@@ -377,4 +378,79 @@ def note_manage_kb(note_id: int) -> InlineKeyboardMarkup:
     return InlineKeyboardMarkup(inline_keyboard=[
         [InlineKeyboardButton(text="🗑 O'chirish", callback_data=f"ndel:{note_id}")],
         [InlineKeyboardButton(text="⬅️ Ro'yxatga qaytish", callback_data="nlist")],
+    ])
+
+
+# =====================================================================
+# Materiallar (o'qish/o'rganish)
+# =====================================================================
+
+MTYPE_MARK = {"book": "📖", "course": "🎓", "quran": "☪️", "other": "📄"}
+MTYPE_NAME = {"book": "Kitob", "course": "Kurs", "quran": "Qur'on", "other": "Boshqa"}
+MSTATUS_MARK = {"active": "🟢", "paused": "⏸", "done": "✅"}
+
+
+def materials_list_kb(items: list[dict], page: int = 0,
+                      per_page: int = 6) -> InlineKeyboardMarkup:
+    total = len(items)
+    pages = max(1, (total + per_page - 1) // per_page)
+    page = max(0, min(page, pages - 1))
+    chunk = items[page * per_page: page * per_page + per_page]
+
+    rows: list[list[InlineKeyboardButton]] = [
+        [InlineKeyboardButton(text="➕ Yangi material", callback_data="mnew")]
+    ]
+    for m in chunk:
+        mark = MSTATUS_MARK.get(m["status"], "🟢")
+        prog = f" ({m['current']}/{m['total']})" if m["total"] else ""
+        rows.append([InlineKeyboardButton(
+            text=f"{mark} {_short(m['title'], 30)}{prog}",
+            callback_data=f"mshow:{m['id']}")])
+
+    if pages > 1:
+        nav: list[InlineKeyboardButton] = []
+        if page > 0:
+            nav.append(InlineKeyboardButton(text="◀️", callback_data=f"mpage:{page-1}"))
+        nav.append(InlineKeyboardButton(text=f"{page+1}/{pages}", callback_data="noop"))
+        if page < pages - 1:
+            nav.append(InlineKeyboardButton(text="▶️", callback_data=f"mpage:{page+1}"))
+        rows.append(nav)
+    return InlineKeyboardMarkup(inline_keyboard=rows)
+
+
+def material_manage_kb(mid: int, status: str) -> InlineKeyboardMarkup:
+    pause = (InlineKeyboardButton(text="▶️ Faollashtirish", callback_data=f"mstatus:{mid}:active")
+             if status != "active"
+             else InlineKeyboardButton(text="⏸ Pauza", callback_data=f"mstatus:{mid}:paused"))
+    rows = [
+        [InlineKeyboardButton(text="➕ Yangilash", callback_data=f"mupd:{mid}"),
+         InlineKeyboardButton(text="🎯 Hajm", callback_data=f"mtotal:{mid}")],
+        [InlineKeyboardButton(text="📚 Tur", callback_data=f"mtype:{mid}"), pause],
+    ]
+    if status != "done":
+        rows.append([InlineKeyboardButton(text="✅ Yakunlash", callback_data=f"mstatus:{mid}:done"),
+                     InlineKeyboardButton(text="🗑 O'chirish", callback_data=f"mdel:{mid}")])
+    else:
+        rows.append([InlineKeyboardButton(text="🗑 O'chirish", callback_data=f"mdel:{mid}")])
+    rows.append([InlineKeyboardButton(text="⬅️ Ro'yxatga qaytish", callback_data="mlist")])
+    return InlineKeyboardMarkup(inline_keyboard=rows)
+
+
+def material_progress_kb(mid: int) -> InlineKeyboardMarkup:
+    return InlineKeyboardMarkup(inline_keyboard=[
+        [InlineKeyboardButton(text="+1", callback_data=f"minc:{mid}:1"),
+         InlineKeyboardButton(text="+5", callback_data=f"minc:{mid}:5"),
+         InlineKeyboardButton(text="+10", callback_data=f"minc:{mid}:10")],
+        [InlineKeyboardButton(text="✏️ Aniq son", callback_data=f"mexact:{mid}")],
+        [InlineKeyboardButton(text="⬅️ Orqaga", callback_data=f"mshow:{mid}")],
+    ])
+
+
+def material_type_kb(mid: int) -> InlineKeyboardMarkup:
+    return InlineKeyboardMarkup(inline_keyboard=[
+        [InlineKeyboardButton(text="📖 Kitob", callback_data=f"msett:{mid}:book"),
+         InlineKeyboardButton(text="🎓 Kurs", callback_data=f"msett:{mid}:course")],
+        [InlineKeyboardButton(text="☪️ Qur'on", callback_data=f"msett:{mid}:quran"),
+         InlineKeyboardButton(text="📄 Boshqa", callback_data=f"msett:{mid}:other")],
+        [InlineKeyboardButton(text="⬅️ Orqaga", callback_data=f"mshow:{mid}")],
     ])
