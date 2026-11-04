@@ -148,3 +148,100 @@ class Referral(models.Model):
     @property
     def time_str(self):
         return f"{self.hour:02d}:{self.minute:02d}"
+
+
+TASK_PRIORITY_CHOICES = [("high", "🔴 Yuqori"), ("normal", "🟡 O'rta"), ("low", "⚪ Past")]
+MATERIAL_TYPE_CHOICES = [
+    ("book", "📖 Kitob"), ("course", "🎓 Kurs"),
+    ("quran", "☪️ Qur'on"), ("other", "📄 Boshqa"),
+]
+MATERIAL_STATUS_CHOICES = [
+    ("active", "🟢 Faol"), ("paused", "⏸ Pauzada"), ("done", "✅ Yakunlangan"),
+]
+HABIT_STATUS_CHOICES = [("done", "✅ Bajarildi"), ("skipped", "⏭ O'tkazildi")]
+
+
+class Task(models.Model):
+    """Bir martalik vazifa (tasks jadvali)."""
+    user = models.ForeignKey(
+        BotUser, on_delete=models.CASCADE, db_column="user_id",
+        related_name="tasks", verbose_name="Foydalanuvchi",
+    )
+    title = models.TextField("Vazifa")
+    due_date = models.TextField("Muddat", blank=True, null=True)
+    priority = models.TextField("Ustuvorlik", choices=TASK_PRIORITY_CHOICES, default="normal")
+    is_done = models.BooleanField("Bajarilgan", default=False)
+    done_at = models.DateTimeField("Bajarilgan vaqti", blank=True, null=True)
+    created_at = models.DateTimeField("Yaratilgan", blank=True, null=True)
+
+    class Meta:
+        managed = False
+        db_table = "tasks"
+        verbose_name = "Vazifa"
+        verbose_name_plural = "Vazifalar"
+
+    def __str__(self):
+        return self.title[:50]
+
+
+class Note(models.Model):
+    """Qayd (notes jadvali)."""
+    user = models.ForeignKey(
+        BotUser, on_delete=models.CASCADE, db_column="user_id",
+        related_name="notes", verbose_name="Foydalanuvchi",
+    )
+    text = models.TextField("Matn")
+    created_at = models.DateTimeField("Yaratilgan", blank=True, null=True)
+
+    class Meta:
+        managed = False
+        db_table = "notes"
+        verbose_name = "Qayd"
+        verbose_name_plural = "Qaydlar"
+
+    def __str__(self):
+        return self.text[:50]
+
+
+class Material(models.Model):
+    """O'qish/o'rganish materiali (materials jadvali)."""
+    user = models.ForeignKey(
+        BotUser, on_delete=models.CASCADE, db_column="user_id",
+        related_name="materials", verbose_name="Foydalanuvchi",
+    )
+    title = models.TextField("Nomi")
+    mtype = models.TextField("Turi", choices=MATERIAL_TYPE_CHOICES, default="book")
+    unit = models.TextField("O'lchov", blank=True, null=True)
+    total = models.IntegerField("Umumiy hajm", blank=True, null=True)
+    current = models.IntegerField("Joriy nuqta", default=0)
+    status = models.TextField("Holat", choices=MATERIAL_STATUS_CHOICES, default="active")
+    created_at = models.DateTimeField("Yaratilgan", blank=True, null=True)
+
+    class Meta:
+        managed = False
+        db_table = "materials"
+        verbose_name = "Material"
+        verbose_name_plural = "Materiallar"
+
+    def __str__(self):
+        return self.title[:50]
+
+
+class HabitLog(models.Model):
+    """Odat kuzatuvi natijasi (habit_logs jadvali)."""
+    reminder = models.ForeignKey(
+        Reminder, on_delete=models.CASCADE, db_column="reminder_id",
+        related_name="logs", verbose_name="Eslatma (odat)",
+    )
+    log_date = models.TextField("Sana")
+    status = models.TextField("Natija", choices=HABIT_STATUS_CHOICES)
+    created_at = models.DateTimeField("Yozilgan", blank=True, null=True)
+
+    class Meta:
+        managed = False
+        db_table = "habit_logs"
+        verbose_name = "Odat natijasi"
+        verbose_name_plural = "Odat kuzatuvi"
+
+    def __str__(self):
+        return f"{self.log_date} — {self.status}"

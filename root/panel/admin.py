@@ -6,7 +6,16 @@ from django.db import connection
 from django.db.models import Count, Q
 from django.utils.html import format_html, strip_tags
 
-from .models import Broadcast, BotUser, Referral, Reminder
+from .models import (
+    Broadcast,
+    BotUser,
+    HabitLog,
+    Material,
+    Note,
+    Referral,
+    Reminder,
+    Task,
+)
 
 admin.site.site_header = "🔔 EslatBot — Adminka"
 admin.site.site_title = "EslatBot"
@@ -380,3 +389,55 @@ class BroadcastAdmin(admin.ModelAdmin):
         }
         color, label = colors.get(obj.status, ("#6b7280", obj.status))
         return format_html('<b style="color:{}">{}</b>', color, label)
+
+
+# =====================================================================
+# Taskly modullari: vazifalar, qaydlar, materiallar, odat kuzatuvi
+# =====================================================================
+
+@admin.register(Task)
+class TaskAdmin(admin.ModelAdmin):
+    list_display = ("id", "title", "user", "priority", "due_date", "is_done",
+                    "done_at", "created_at")
+    list_filter = ("is_done", "priority")
+    search_fields = ("title", "user__name", "user__username", "user__tg_id")
+    ordering = ("-id",)
+    list_select_related = ("user",)
+
+
+@admin.register(Note)
+class NoteAdmin(admin.ModelAdmin):
+    list_display = ("id", "qisqa", "user", "created_at")
+    search_fields = ("text", "user__name", "user__username", "user__tg_id")
+    ordering = ("-id",)
+    list_select_related = ("user",)
+
+    @admin.display(description="Matn")
+    def qisqa(self, obj):
+        t = (obj.text or "").strip()
+        return (t[:70] + "…") if len(t) > 70 else t
+
+
+@admin.register(Material)
+class MaterialAdmin(admin.ModelAdmin):
+    list_display = ("id", "title", "user", "mtype", "jarayon", "status", "created_at")
+    list_filter = ("status", "mtype")
+    search_fields = ("title", "user__name", "user__username", "user__tg_id")
+    ordering = ("-id",)
+    list_select_related = ("user",)
+
+    @admin.display(description="Jarayon")
+    def jarayon(self, obj):
+        if obj.total:
+            pct = int(min(obj.current, obj.total) * 100 / obj.total)
+            return f"{obj.current}/{obj.total} ({pct}%)"
+        return f"{obj.current}"
+
+
+@admin.register(HabitLog)
+class HabitLogAdmin(admin.ModelAdmin):
+    list_display = ("id", "reminder", "log_date", "status", "created_at")
+    list_filter = ("status",)
+    search_fields = ("reminder__text",)
+    ordering = ("-log_date", "-id")
+    list_select_related = ("reminder",)
