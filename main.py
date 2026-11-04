@@ -13,6 +13,7 @@ from app.handlers import (
     dayplan,
     edit,
     manage,
+    notes,
     referral,
     reminders,
     settings,
@@ -58,7 +59,7 @@ async def main() -> None:
     # reminders.router oxirida — unda erkin matnni ushlaydigan handler bor.
     dp.include_routers(
         referral.router, start.router, manage.router, settings.router,
-        dayplan.router, edit.router, tasks.router, reminders.router,
+        dayplan.router, edit.router, tasks.router, notes.router, reminders.router,
     )
 
     # Chiquvchi xabar navbatini ishga tushiramiz (flood himoyasi) — jadval

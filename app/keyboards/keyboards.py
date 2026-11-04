@@ -11,6 +11,7 @@ from app.utils.parser import WEEKDAY_NAMES
 BTN_NEW = "➕ Yangi eslatma"
 BTN_LIST = "📋 Eslatmalarim"
 BTN_TASKS = "✅ Vazifalar"
+BTN_NOTES = "🗒 Qaydlar"
 BTN_PLAN = "📝 Kunlik reja"
 BTN_SETTINGS = "⚙️ Sozlamalar"
 BTN_REFERRAL = "📤 Referal"
@@ -20,8 +21,9 @@ BTN_SHARE_PHONE = "📱 Raqamni ulashish"
 main_menu = ReplyKeyboardMarkup(
     keyboard=[
         [KeyboardButton(text=BTN_NEW), KeyboardButton(text=BTN_LIST)],
-        [KeyboardButton(text=BTN_TASKS), KeyboardButton(text=BTN_PLAN)],
-        [KeyboardButton(text=BTN_SETTINGS), KeyboardButton(text=BTN_REFERRAL)],
+        [KeyboardButton(text=BTN_TASKS), KeyboardButton(text=BTN_NOTES)],
+        [KeyboardButton(text=BTN_PLAN), KeyboardButton(text=BTN_SETTINGS)],
+        [KeyboardButton(text=BTN_REFERRAL)],
     ],
     resize_keyboard=True,
 )
@@ -339,4 +341,40 @@ def task_due_kb(task_id: int) -> InlineKeyboardMarkup:
         [InlineKeyboardButton(text="📆 +7 kun", callback_data=f"tsetd:{task_id}:7"),
          InlineKeyboardButton(text="🚫 Sanasiz", callback_data=f"tsetd:{task_id}:none")],
         [InlineKeyboardButton(text="⬅️ Orqaga", callback_data=f"tshow:{task_id}")],
+    ])
+
+
+# =====================================================================
+# Qaydlar (notes)
+# =====================================================================
+
+def notes_list_kb(notes: list[dict], page: int = 0,
+                  per_page: int = 7) -> InlineKeyboardMarkup:
+    total = len(notes)
+    pages = max(1, (total + per_page - 1) // per_page)
+    page = max(0, min(page, pages - 1))
+    chunk = notes[page * per_page: page * per_page + per_page]
+
+    rows: list[list[InlineKeyboardButton]] = [
+        [InlineKeyboardButton(text="➕ Yangi qayd", callback_data="nnew")]
+    ]
+    for n in chunk:
+        rows.append([InlineKeyboardButton(
+            text=f"🗒 {_short(n['text'])}", callback_data=f"nshow:{n['id']}")])
+
+    if pages > 1:
+        nav: list[InlineKeyboardButton] = []
+        if page > 0:
+            nav.append(InlineKeyboardButton(text="◀️", callback_data=f"npage:{page-1}"))
+        nav.append(InlineKeyboardButton(text=f"{page+1}/{pages}", callback_data="noop"))
+        if page < pages - 1:
+            nav.append(InlineKeyboardButton(text="▶️", callback_data=f"npage:{page+1}"))
+        rows.append(nav)
+    return InlineKeyboardMarkup(inline_keyboard=rows)
+
+
+def note_manage_kb(note_id: int) -> InlineKeyboardMarkup:
+    return InlineKeyboardMarkup(inline_keyboard=[
+        [InlineKeyboardButton(text="🗑 O'chirish", callback_data=f"ndel:{note_id}")],
+        [InlineKeyboardButton(text="⬅️ Ro'yxatga qaytish", callback_data="nlist")],
     ])

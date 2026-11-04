@@ -114,6 +114,16 @@ CREATE TABLE IF NOT EXISTS tasks (
 );
 
 CREATE INDEX IF NOT EXISTS idx_tasks_user ON tasks (user_id, is_done);
+
+-- Qaydlar: oddiy matnli eslatib qo'yish (loyiha/vazifaga bog'lanmagan).
+CREATE TABLE IF NOT EXISTS notes (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    user_id INTEGER NOT NULL REFERENCES users (id),
+    text TEXT NOT NULL,
+    created_at TEXT
+);
+
+CREATE INDEX IF NOT EXISTS idx_notes_user ON notes (user_id);
 """
 
 
@@ -624,4 +634,47 @@ async def update_task(task_id: int, **fields) -> None:
 async def delete_task(task_id: int) -> None:
     async with _lock:
         await _db().execute("DELETE FROM tasks WHERE id = ?", (task_id,))
+        await _db().commit()
+
+
+# --- Qaydlar (notes) ---
+
+async def add_note(user_id: int, text: str) -> int:
+    async with _lock:
+        cur = await _db().execute(
+            "INSERT INTO notes (user_id, text, created_at) VALUES (?, ?, ?)",
+            (user_id, text, datetime.now().isoformat()),
+        )
+        await _db().commit()
+        return cur.lastrowid
+
+
+async def get_user_notes(tg_id: int, query: str | None = None) -> list[dict]:
+    """Foydalanuvchi qaydlari (yangi -> eski). query berilsa — matn bo'yicha qidiradi."""
+    q = ("SELECT n.* FROM notes n JOIN users u ON u.id = n.user_id "
+         "WHERE u.tg_id = ?")
+    params: list = [tg_id]
+    if query:
+        q += " AND n.text LIKE ?"
+        params.append(f"%{query}%")
+    q += " ORDER BY n.id DESC"
+    async with _lock:
+        cur = await _db().execute(q, params)
+        rows = await cur.fetchall()
+    return [dict(r) for r in rows]
+
+
+async def get_note(note_id: int) -> dict | None:
+    async with _lock:
+        cur = await _db().execute(
+            "SELECT n.*, u.tg_id FROM notes n JOIN users u ON u.id = n.user_id "
+            "WHERE n.id = ?", (note_id,),
+        )
+        row = await cur.fetchone()
+    return dict(row) if row else None
+
+
+async def delete_note(note_id: int) -> None:
+    async with _lock:
+        await _db().execute("DELETE FROM notes WHERE id = ?", (note_id,))
         await _db().commit()
