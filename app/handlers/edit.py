@@ -24,6 +24,7 @@ from app.scheduler.scheduler import (
 )
 from app.utils.fmt import esc
 from app.utils.guards import get_owned_reminder
+from app.utils.habits import is_habit
 from app.utils.parser import describe, parse_time
 
 router = Router()
@@ -51,7 +52,7 @@ async def _confirm(message: Message, rem_id: int, note: str):
     schedule_reminder(message.bot, rem)
     await message.answer(
         f"✅ {note}\n\n{_format_line(rem)}",
-        reply_markup=reminder_manage_kb(rem["id"], bool(rem["is_active"])),
+        reply_markup=reminder_manage_kb(rem["id"], bool(rem["is_active"]), is_habit(rem)),
     )
 
 
@@ -73,7 +74,7 @@ async def edit_back(callback: CallbackQuery):
     if not rem:
         return
     await callback.message.edit_reply_markup(
-        reply_markup=reminder_manage_kb(rid, bool(rem["is_active"]))
+        reply_markup=reminder_manage_kb(rid, bool(rem["is_active"]), is_habit(rem))
     )
     await callback.answer()
 

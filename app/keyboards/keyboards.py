@@ -128,11 +128,17 @@ weekday_kb = InlineKeyboardMarkup(
 )
 
 
-def reminder_fired_kb(reminder_id: int) -> InlineKeyboardMarkup:
-    """Eslatma kelganda chiqadigan tugmalar: bajarildi + moslashuvchan snooze."""
+def reminder_fired_kb(reminder_id: int,
+                      is_recurring: bool = False) -> InlineKeyboardMarkup:
+    """Eslatma kelganda chiqadigan tugmalar: bajarildi + moslashuvchan snooze.
+    Takror odat bo'lsa — "O'tkazdim" tugmasi ham qo'shiladi (odat kuzatuvi)."""
+    top = [InlineKeyboardButton(text="✅ Bajarildi", callback_data=f"done:{reminder_id}")]
+    if is_recurring:
+        top.append(InlineKeyboardButton(
+            text="⏭ O'tkazdim", callback_data=f"skip:{reminder_id}"))
     return InlineKeyboardMarkup(
         inline_keyboard=[
-            [InlineKeyboardButton(text="✅ Bajarildi", callback_data=f"done:{reminder_id}")],
+            top,
             [
                 InlineKeyboardButton(text="⏰ 10 daq", callback_data=f"snz:{reminder_id}:10"),
                 InlineKeyboardButton(text="⏰ 30 daq", callback_data=f"snz:{reminder_id}:30"),
@@ -143,20 +149,23 @@ def reminder_fired_kb(reminder_id: int) -> InlineKeyboardMarkup:
     )
 
 
-def reminder_manage_kb(reminder_id: int, is_active: bool) -> InlineKeyboardMarkup:
+def reminder_manage_kb(reminder_id: int, is_active: bool,
+                       is_recurring: bool = False) -> InlineKeyboardMarkup:
     toggle = (
         InlineKeyboardButton(text="⏸ To'xtatish", callback_data=f"toggle:{reminder_id}:0")
         if is_active
         else InlineKeyboardButton(text="▶️ Yoqish", callback_data=f"toggle:{reminder_id}:1")
     )
-    return InlineKeyboardMarkup(
-        inline_keyboard=[
-            [InlineKeyboardButton(text="✏️ Tahrirlash", callback_data=f"edit:{reminder_id}"),
-             InlineKeyboardButton(text="📤 Referal", callback_data=f"ref:{reminder_id}")],
-            [toggle, InlineKeyboardButton(text="🗑 O'chirish", callback_data=f"del:{reminder_id}")],
-            [InlineKeyboardButton(text="⬅️ Ro'yxatga qaytish", callback_data="rlist:0")],
-        ]
-    )
+    rows = [
+        [InlineKeyboardButton(text="✏️ Tahrirlash", callback_data=f"edit:{reminder_id}"),
+         InlineKeyboardButton(text="📤 Referal", callback_data=f"ref:{reminder_id}")],
+        [toggle, InlineKeyboardButton(text="🗑 O'chirish", callback_data=f"del:{reminder_id}")],
+    ]
+    if is_recurring:  # odat — statistika ko'rish mumkin
+        rows.append([InlineKeyboardButton(
+            text="📊 Statistika", callback_data=f"hstat:{reminder_id}")])
+    rows.append([InlineKeyboardButton(text="⬅️ Ro'yxatga qaytish", callback_data="rlist:0")])
+    return InlineKeyboardMarkup(inline_keyboard=rows)
 
 
 def _short(text: str, limit: int = 38) -> str:

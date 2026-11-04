@@ -35,7 +35,7 @@ async def send_reminder(bot: Bot, reminder_id: int) -> None:
     await sender.enqueue(
         rem["tg_id"],
         f"🔔 <b>Eslatma!</b>\n\n{esc(rem['text'])}",
-        reply_markup=reminder_fired_kb(reminder_id),
+        reply_markup=reminder_fired_kb(reminder_id, is_recurring=rem["freq"] != "once"),
     )
     # Bir martalik eslatma yuborilgach o'chadi (snooze uni qayta yoqadi)
     if rem["freq"] == "once":

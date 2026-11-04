@@ -85,6 +85,20 @@ CREATE TABLE IF NOT EXISTS broadcasts (
 );
 
 CREATE INDEX IF NOT EXISTS idx_broadcast_status ON broadcasts (status);
+
+-- Odat kuzatuvi: takror eslatma (odat) har kungi natijasi.
+-- status: 'done' (bajarildi) | 'skipped' (o'tkazib yuborildi).
+-- Bir eslatma-bir kun = bitta yozuv (UNIQUE), qayta bosilsa yangilanadi.
+CREATE TABLE IF NOT EXISTS habit_logs (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    reminder_id INTEGER NOT NULL REFERENCES reminders (id),
+    log_date TEXT NOT NULL,              -- 'YYYY-MM-DD'
+    status TEXT NOT NULL,                -- done | skipped
+    created_at TEXT,
+    UNIQUE (reminder_id, log_date)
+);
+
+CREATE INDEX IF NOT EXISTS idx_habit_rem ON habit_logs (reminder_id);
 """
 
 
@@ -489,3 +503,46 @@ async def get_user_by_username(username: str) -> dict | None:
         )
         row = await cur.fetchone()
     return dict(row) if row else None
+
+
+# --- Odat kuzatuvi (habit tracking) ---
+
+async def log_habit(reminder_id: int, status: str, log_date: str | None = None) -> None:
+    """Odatning bugungi (yoki berilgan) natijasini yozadi/yangilaydi.
+    status: 'done' yoki 'skipped'."""
+    from datetime import date
+    ld = log_date or date.today().isoformat()
+    async with _lock:
+        await _db().execute(
+            """INSERT INTO habit_logs (reminder_id, log_date, status, created_at)
+               VALUES (?, ?, ?, ?)
+               ON CONFLICT(reminder_id, log_date)
+               DO UPDATE SET status=excluded.status, created_at=excluded.created_at""",
+            (reminder_id, ld, status, datetime.now().isoformat()),
+        )
+        await _db().commit()
+
+
+async def get_habit_status_today(reminder_id: int, log_date: str | None = None) -> str | None:
+    """Bugungi (yoki berilgan sana) natijasi: 'done' | 'skipped' | None."""
+    from datetime import date
+    ld = log_date or date.today().isoformat()
+    async with _lock:
+        cur = await _db().execute(
+            "SELECT status FROM habit_logs WHERE reminder_id = ? AND log_date = ?",
+            (reminder_id, ld),
+        )
+        row = await cur.fetchone()
+    return row[0] if row else None
+
+
+async def get_habit_logs(reminder_id: int, limit: int = 400) -> list[dict]:
+    """Odatning so'nggi natijalari (yangi -> eski)."""
+    async with _lock:
+        cur = await _db().execute(
+            "SELECT log_date, status FROM habit_logs WHERE reminder_id = ? "
+            "ORDER BY log_date DESC LIMIT ?",
+            (reminder_id, limit),
+        )
+        rows = await cur.fetchall()
+    return [dict(r) for r in rows]
