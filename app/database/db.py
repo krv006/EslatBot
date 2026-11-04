@@ -99,6 +99,21 @@ CREATE TABLE IF NOT EXISTS habit_logs (
 );
 
 CREATE INDEX IF NOT EXISTS idx_habit_rem ON habit_logs (reminder_id);
+
+-- Vazifalar: bir martalik ish (eslatmadan farqli). Muddat (deadline), ustuvorlik,
+-- bajarilganlik holati bor. Eslatmadek belgilangan vaqtda otilmaydi.
+CREATE TABLE IF NOT EXISTS tasks (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    user_id INTEGER NOT NULL REFERENCES users (id),
+    title TEXT NOT NULL,
+    due_date TEXT,                       -- 'YYYY-MM-DD' | NULL
+    priority TEXT NOT NULL DEFAULT 'normal',  -- low | normal | high
+    is_done INTEGER NOT NULL DEFAULT 0,
+    done_at TEXT,
+    created_at TEXT
+);
+
+CREATE INDEX IF NOT EXISTS idx_tasks_user ON tasks (user_id, is_done);
 """
 
 
@@ -546,3 +561,67 @@ async def get_habit_logs(reminder_id: int, limit: int = 400) -> list[dict]:
         )
         rows = await cur.fetchall()
     return [dict(r) for r in rows]
+
+
+# --- Vazifalar (tasks) ---
+
+async def add_task(user_id: int, title: str, due_date: str | None = None,
+                   priority: str = "normal") -> int:
+    async with _lock:
+        cur = await _db().execute(
+            """INSERT INTO tasks (user_id, title, due_date, priority, created_at)
+               VALUES (?, ?, ?, ?, ?)""",
+            (user_id, title, due_date, priority, datetime.now().isoformat()),
+        )
+        await _db().commit()
+        return cur.lastrowid
+
+
+async def get_user_tasks(tg_id: int, include_done: bool = False) -> list[dict]:
+    """Foydalanuvchi vazifalari. include_done=False — faqat bajarilmaganlar."""
+    q = ("SELECT t.* FROM tasks t JOIN users u ON u.id = t.user_id "
+         "WHERE u.tg_id = ?")
+    if not include_done:
+        q += " AND t.is_done = 0"
+    q += " ORDER BY t.is_done, (t.due_date IS NULL), t.due_date, t.id DESC"
+    async with _lock:
+        cur = await _db().execute(q, (tg_id,))
+        rows = await cur.fetchall()
+    return [dict(r) for r in rows]
+
+
+async def get_task(task_id: int) -> dict | None:
+    async with _lock:
+        cur = await _db().execute(
+            "SELECT t.*, u.tg_id FROM tasks t JOIN users u ON u.id = t.user_id "
+            "WHERE t.id = ?", (task_id,),
+        )
+        row = await cur.fetchone()
+    return dict(row) if row else None
+
+
+async def set_task_done(task_id: int, done: bool) -> None:
+    async with _lock:
+        await _db().execute(
+            "UPDATE tasks SET is_done = ?, done_at = ? WHERE id = ?",
+            (1 if done else 0, datetime.now().isoformat() if done else None, task_id),
+        )
+        await _db().commit()
+
+
+async def update_task(task_id: int, **fields) -> None:
+    allowed = {"title", "due_date", "priority"}
+    fields = {k: v for k, v in fields.items() if k in allowed}
+    if not fields:
+        return
+    cols = ", ".join(f"{k} = ?" for k in fields)
+    async with _lock:
+        await _db().execute(f"UPDATE tasks SET {cols} WHERE id = ?",
+                            list(fields.values()) + [task_id])
+        await _db().commit()
+
+
+async def delete_task(task_id: int) -> None:
+    async with _lock:
+        await _db().execute("DELETE FROM tasks WHERE id = ?", (task_id,))
+        await _db().commit()

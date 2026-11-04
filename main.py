@@ -9,7 +9,16 @@ from aiogram.types import BotCommand
 
 from app.config import BOT_TOKEN
 from app.database import db
-from app.handlers import dayplan, edit, manage, referral, reminders, settings, start
+from app.handlers import (
+    dayplan,
+    edit,
+    manage,
+    referral,
+    reminders,
+    settings,
+    start,
+    tasks,
+)
 from app.scheduler.scheduler import (
     load_all_digests,
     load_all_reminders,
@@ -49,7 +58,7 @@ async def main() -> None:
     # reminders.router oxirida — unda erkin matnni ushlaydigan handler bor.
     dp.include_routers(
         referral.router, start.router, manage.router, settings.router,
-        dayplan.router, edit.router, reminders.router,
+        dayplan.router, edit.router, tasks.router, reminders.router,
     )
 
     # Chiquvchi xabar navbatini ishga tushiramiz (flood himoyasi) — jadval

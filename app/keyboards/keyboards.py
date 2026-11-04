@@ -10,6 +10,7 @@ from app.utils.parser import WEEKDAY_NAMES
 
 BTN_NEW = "➕ Yangi eslatma"
 BTN_LIST = "📋 Eslatmalarim"
+BTN_TASKS = "✅ Vazifalar"
 BTN_PLAN = "📝 Kunlik reja"
 BTN_SETTINGS = "⚙️ Sozlamalar"
 BTN_REFERRAL = "📤 Referal"
@@ -19,8 +20,8 @@ BTN_SHARE_PHONE = "📱 Raqamni ulashish"
 main_menu = ReplyKeyboardMarkup(
     keyboard=[
         [KeyboardButton(text=BTN_NEW), KeyboardButton(text=BTN_LIST)],
-        [KeyboardButton(text=BTN_PLAN), KeyboardButton(text=BTN_SETTINGS)],
-        [KeyboardButton(text=BTN_REFERRAL)],
+        [KeyboardButton(text=BTN_TASKS), KeyboardButton(text=BTN_PLAN)],
+        [KeyboardButton(text=BTN_SETTINGS), KeyboardButton(text=BTN_REFERRAL)],
     ],
     resize_keyboard=True,
 )
@@ -270,3 +271,72 @@ edit_weekday_kb = InlineKeyboardMarkup(
          for i in range(4, 7)],
     ]
 )
+
+
+# =====================================================================
+# Vazifalar (tasks)
+# =====================================================================
+
+PRIORITY_MARK = {"high": "🔴", "normal": "🟡", "low": "⚪"}
+PRIORITY_NAME = {"high": "Yuqori", "normal": "O'rta", "low": "Past"}
+
+
+def tasks_list_kb(tasks: list[dict], page: int = 0,
+                  per_page: int = 6) -> InlineKeyboardMarkup:
+    """Vazifalar ro'yxati — bitta xabarda, har vazifa bitta tugma + sahifalash."""
+    total = len(tasks)
+    pages = max(1, (total + per_page - 1) // per_page)
+    page = max(0, min(page, pages - 1))
+    chunk = tasks[page * per_page: page * per_page + per_page]
+
+    rows: list[list[InlineKeyboardButton]] = [
+        [InlineKeyboardButton(text="➕ Yangi vazifa", callback_data="tnew")]
+    ]
+    for t in chunk:
+        mark = "✅" if t["is_done"] else PRIORITY_MARK.get(t["priority"], "🟡")
+        rows.append([InlineKeyboardButton(
+            text=f"{mark} {_short(t['title'])}", callback_data=f"tshow:{t['id']}")])
+
+    if pages > 1:
+        nav: list[InlineKeyboardButton] = []
+        if page > 0:
+            nav.append(InlineKeyboardButton(text="◀️", callback_data=f"tpage:{page-1}"))
+        nav.append(InlineKeyboardButton(text=f"{page+1}/{pages}", callback_data="noop"))
+        if page < pages - 1:
+            nav.append(InlineKeyboardButton(text="▶️", callback_data=f"tpage:{page+1}"))
+        rows.append(nav)
+    return InlineKeyboardMarkup(inline_keyboard=rows)
+
+
+def task_manage_kb(task_id: int, is_done: bool) -> InlineKeyboardMarkup:
+    done_btn = (
+        InlineKeyboardButton(text="↩️ Qaytarish", callback_data=f"tdone:{task_id}:0")
+        if is_done else
+        InlineKeyboardButton(text="✅ Bajarildi", callback_data=f"tdone:{task_id}:1")
+    )
+    return InlineKeyboardMarkup(inline_keyboard=[
+        [done_btn, InlineKeyboardButton(text="🗑 O'chirish", callback_data=f"tdel:{task_id}")],
+        [InlineKeyboardButton(text="📅 Muddat", callback_data=f"tdue:{task_id}"),
+         InlineKeyboardButton(text="⭐ Ustuvorlik", callback_data=f"tprio:{task_id}")],
+        [InlineKeyboardButton(text="⬅️ Ro'yxatga qaytish", callback_data="tlist")],
+    ])
+
+
+def task_priority_kb(task_id: int) -> InlineKeyboardMarkup:
+    return InlineKeyboardMarkup(inline_keyboard=[
+        [InlineKeyboardButton(text="🔴 Yuqori", callback_data=f"tsetp:{task_id}:high"),
+         InlineKeyboardButton(text="🟡 O'rta", callback_data=f"tsetp:{task_id}:normal"),
+         InlineKeyboardButton(text="⚪ Past", callback_data=f"tsetp:{task_id}:low")],
+        [InlineKeyboardButton(text="⬅️ Orqaga", callback_data=f"tshow:{task_id}")],
+    ])
+
+
+def task_due_kb(task_id: int) -> InlineKeyboardMarkup:
+    return InlineKeyboardMarkup(inline_keyboard=[
+        [InlineKeyboardButton(text="📍 Bugun", callback_data=f"tsetd:{task_id}:0"),
+         InlineKeyboardButton(text="🌅 Ertaga", callback_data=f"tsetd:{task_id}:1"),
+         InlineKeyboardButton(text="⏩ Indinga", callback_data=f"tsetd:{task_id}:2")],
+        [InlineKeyboardButton(text="📆 +7 kun", callback_data=f"tsetd:{task_id}:7"),
+         InlineKeyboardButton(text="🚫 Sanasiz", callback_data=f"tsetd:{task_id}:none")],
+        [InlineKeyboardButton(text="⬅️ Orqaga", callback_data=f"tshow:{task_id}")],
+    ])
