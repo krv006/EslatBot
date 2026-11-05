@@ -1,0 +1,184 @@
+/* EslatBot Mini App — Telegram mavzusiga moslashuvchi, mobil-birinchi dizayn */
+:root {
+  --bg: var(--tg-theme-bg-color, #ffffff);
+  --secondary-bg: var(--tg-theme-secondary-bg-color, #f1f3f5);
+  --text: var(--tg-theme-text-color, #1a1a1a);
+  --hint: var(--tg-theme-hint-color, #8a9099);
+  --link: var(--tg-theme-link-color, #2b8cff);
+  --accent: var(--tg-theme-button-color, #2b8cff);
+  --accent-text: var(--tg-theme-button-text-color, #ffffff);
+  --card: var(--tg-theme-bg-color, #ffffff);
+  --danger: #e5484d;
+  --green: #22c55e;
+  --amber: #f59e0b;
+  --radius: 14px;
+  --gap: 12px;
+}
+
+* { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+html, body {
+  margin: 0; padding: 0;
+  background: var(--secondary-bg); color: var(--text);
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+  font-size: 16px; line-height: 1.4;
+  overscroll-behavior-y: contain;
+}
+#app { max-width: 640px; margin: 0 auto; padding: 14px 14px 90px; }
+
+/* --- Umumiy --- */
+.muted { color: var(--hint); }
+.center { text-align: center; }
+.hidden { display: none !important; }
+.spin { text-align: center; padding: 48px 0; color: var(--hint); }
+
+.header { margin: 6px 2px 16px; }
+.header h1 { font-size: 22px; margin: 0 0 2px; font-weight: 700; }
+.header .sub { color: var(--hint); font-size: 14px; }
+
+.section-title {
+  font-size: 13px; text-transform: uppercase; letter-spacing: .4px;
+  color: var(--hint); margin: 18px 4px 8px; font-weight: 600;
+}
+
+/* --- Kartalar --- */
+.card {
+  background: var(--card); border-radius: var(--radius);
+  padding: 14px; margin-bottom: 10px;
+  box-shadow: 0 1px 2px rgba(0,0,0,.05);
+}
+.row { display: flex; align-items: center; gap: 10px; }
+.row.between { justify-content: space-between; }
+.grow { flex: 1; min-width: 0; }
+.ellipsis { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+/* --- Stat chiplar (bosh sahifa) --- */
+.stat-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 10px; }
+.stat {
+  background: var(--card); border-radius: var(--radius); padding: 14px;
+  box-shadow: 0 1px 2px rgba(0,0,0,.05);
+}
+.stat .big { font-size: 28px; font-weight: 800; line-height: 1; }
+.stat .lbl { color: var(--hint); font-size: 13px; margin-top: 6px; }
+.stat.accent .big { color: var(--accent); }
+.stat.green .big { color: var(--green); }
+.stat.amber .big { color: var(--amber); }
+
+/* --- Ro'yxat elementi --- */
+.item { display: flex; align-items: flex-start; gap: 10px; }
+.item .title { font-weight: 600; }
+.item .meta { font-size: 13px; color: var(--hint); margin-top: 3px;
+  display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
+.badge {
+  display: inline-block; font-size: 12px; padding: 2px 8px;
+  border-radius: 999px; background: var(--secondary-bg); color: var(--text);
+}
+.badge.streak { background: rgba(245,158,11,.15); color: #b45309; }
+.badge.off { opacity: .55; }
+
+/* --- Tugmalar --- */
+.btn {
+  border: none; border-radius: 10px; padding: 9px 14px; font-size: 15px;
+  font-weight: 600; background: var(--accent); color: var(--accent-text);
+  cursor: pointer;
+}
+.btn.ghost { background: var(--secondary-bg); color: var(--text); }
+.btn.danger { background: rgba(229,72,77,.12); color: var(--danger); }
+.btn.sm { padding: 6px 10px; font-size: 14px; }
+.btn.block { width: 100%; }
+.iconbtn {
+  border: none; background: transparent; color: var(--hint);
+  font-size: 20px; padding: 4px 8px; cursor: pointer; line-height: 1;
+}
+.iconbtn.danger { color: var(--danger); }
+
+/* --- Switch (chiziqcha) --- */
+.switch { position: relative; width: 46px; height: 28px; flex: none; }
+.switch input { display: none; }
+.switch .track {
+  position: absolute; inset: 0; background: var(--hint); opacity: .4;
+  border-radius: 999px; transition: .2s;
+}
+.switch input:checked + .track { background: var(--green); opacity: 1; }
+.switch .knob {
+  position: absolute; top: 3px; left: 3px; width: 22px; height: 22px;
+  background: #fff; border-radius: 50%; transition: .2s;
+  box-shadow: 0 1px 3px rgba(0,0,0,.3);
+}
+.switch input:checked ~ .knob { left: 21px; }
+
+/* --- Progress bar (materiallar) --- */
+.progress { height: 8px; background: var(--secondary-bg); border-radius: 999px;
+  overflow: hidden; margin: 10px 0 6px; }
+.progress > div { height: 100%; background: var(--accent); border-radius: 999px; }
+
+/* --- Filtr tablar --- */
+.filters { display: flex; gap: 8px; margin-bottom: 12px; }
+.chip {
+  padding: 7px 14px; border-radius: 999px; background: var(--card);
+  font-size: 14px; font-weight: 600; color: var(--hint); cursor: pointer;
+  border: none;
+}
+.chip.active { background: var(--accent); color: var(--accent-text); }
+
+/* --- Qidiruv / input --- */
+input[type=text], input[type=number], input[type=date], textarea, select {
+  width: 100%; padding: 11px 12px; border-radius: 10px; font-size: 16px;
+  border: 1px solid var(--secondary-bg); background: var(--secondary-bg);
+  color: var(--text); font-family: inherit;
+}
+textarea { resize: vertical; min-height: 90px; }
+label.fld { display: block; margin-bottom: 12px; }
+label.fld .cap { font-size: 13px; color: var(--hint); margin-bottom: 5px;
+  display: block; font-weight: 600; }
+
+/* --- Vaqt tanlash (segmentlar) --- */
+.seg { display: flex; flex-wrap: wrap; gap: 8px; }
+.seg button {
+  flex: 1 0 auto; min-width: 64px; padding: 9px 6px; border-radius: 10px;
+  border: 1px solid var(--secondary-bg); background: var(--secondary-bg);
+  color: var(--text); font-size: 14px; font-weight: 600; cursor: pointer;
+}
+.seg button.on { background: var(--accent); color: var(--accent-text);
+  border-color: var(--accent); }
+
+/* --- Bo'sh holat --- */
+.empty { text-align: center; padding: 48px 20px; color: var(--hint); }
+.empty .ico { font-size: 44px; margin-bottom: 10px; }
+
+/* --- Pastki navigatsiya --- */
+.tabbar {
+  position: fixed; bottom: 0; left: 0; right: 0; z-index: 20;
+  display: flex; background: var(--card);
+  border-top: 1px solid var(--secondary-bg);
+  padding-bottom: env(safe-area-inset-bottom, 0);
+}
+.tabbar button {
+  flex: 1; border: none; background: transparent; cursor: pointer;
+  padding: 8px 2px 10px; color: var(--hint); font-size: 11px; font-weight: 600;
+  display: flex; flex-direction: column; align-items: center; gap: 3px;
+}
+.tabbar button .ic { font-size: 20px; }
+.tabbar button.active { color: var(--accent); }
+
+/* --- Suzuvchi "+" tugma --- */
+.fab {
+  position: fixed; right: 18px; bottom: calc(72px + env(safe-area-inset-bottom, 0));
+  width: 54px; height: 54px; border-radius: 50%; border: none; z-index: 21;
+  background: var(--accent); color: var(--accent-text); font-size: 28px;
+  box-shadow: 0 4px 14px rgba(0,0,0,.25); cursor: pointer; line-height: 1;
+}
+
+/* --- Modal (pastdan chiquvchi) --- */
+.sheet-bg {
+  position: fixed; inset: 0; background: rgba(0,0,0,.4); z-index: 30;
+  display: flex; align-items: flex-end;
+}
+.sheet {
+  background: var(--bg); width: 100%; max-width: 640px; margin: 0 auto;
+  border-radius: 18px 18px 0 0; padding: 18px 16px
+    calc(18px + env(safe-area-inset-bottom, 0));
+  max-height: 88vh; overflow-y: auto;
+  animation: up .22s ease;
+}
+@keyframes up { from { transform: translateY(100%); } to { transform: none; } }
+.sheet h2 { margin: 2px 0 16px; font-size: 19px; }
