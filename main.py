@@ -29,6 +29,7 @@ from app.scheduler.scheduler import (
 )
 from app.utils.activity import ActivityMiddleware
 from app.utils.broadcaster import broadcast_worker
+from app.utils.sched_sync import scheduler_sync_worker
 from app.utils.sender import sender
 
 logging.basicConfig(
@@ -73,6 +74,9 @@ async def main() -> None:
 
     # Adminkadan yozilgan broadcast'larni yuboruvchi fon-jarayoni
     asyncio.create_task(broadcast_worker(), name="broadcast-worker")
+
+    # Mini App (Django) o'zgartirgan eslatma/digestlarni jadvalga sinxronlovchi fon
+    asyncio.create_task(scheduler_sync_worker(bot), name="scheduler-sync-worker")
 
     scheduler.start()
     await load_all_reminders(bot)

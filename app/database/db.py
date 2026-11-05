@@ -140,6 +140,20 @@ CREATE TABLE IF NOT EXISTS materials (
 );
 
 CREATE INDEX IF NOT EXISTS idx_materials_user ON materials (user_id);
+
+-- Jadval sinxronizatsiyasi: Mini App (Django jarayoni) eslatma/digestni
+-- o'zgartirganda bu yerga "ish" yozadi. Bot alohida jarayon bo'lgani uchun
+-- APScheduler jadvalini o'zi yangilay olmaydi — shu navbatni o'qib yangilaydi.
+-- kind='reminder' (ref_id=reminder.id) | 'digest' (ref_id=user.id).
+CREATE TABLE IF NOT EXISTS scheduler_sync (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    kind TEXT NOT NULL,                  -- reminder | digest
+    ref_id INTEGER NOT NULL,             -- reminder.id yoki user.id
+    processed INTEGER NOT NULL DEFAULT 0,
+    created_at TEXT
+);
+
+CREATE INDEX IF NOT EXISTS idx_sched_sync_pending ON scheduler_sync (processed);
 """
 
 
@@ -544,6 +558,36 @@ async def get_user_by_username(username: str) -> dict | None:
         )
         row = await cur.fetchone()
     return dict(row) if row else None
+
+
+# --- Jadval sinxronizatsiyasi (Mini App -> bot) ---
+
+async def get_pending_scheduler_sync(limit: int = 100) -> list[dict]:
+    """Mini App yozib qoldirgan, hali qayta ishlanmagan sinxronizatsiya ishlari.
+    Jadval hali yaratilmagan bo'lsa (eski baza) — jimgina bo'sh ro'yxat."""
+    try:
+        async with _lock:
+            cur = await _db().execute(
+                "SELECT * FROM scheduler_sync WHERE processed = 0 "
+                "ORDER BY id LIMIT ?",
+                (limit,),
+            )
+            rows = await cur.fetchall()
+        return [dict(r) for r in rows]
+    except Exception:
+        return []
+
+
+async def mark_scheduler_sync_done(ids: list[int]) -> None:
+    if not ids:
+        return
+    placeholders = ",".join("?" * len(ids))
+    async with _lock:
+        await _db().execute(
+            f"UPDATE scheduler_sync SET processed = 1 WHERE id IN ({placeholders})",
+            ids,
+        )
+        await _db().commit()
 
 
 # --- Odat kuzatuvi (habit tracking) ---
