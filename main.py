@@ -5,9 +5,14 @@ import logging
 from aiogram import Bot, Dispatcher
 from aiogram.client.default import DefaultBotProperties
 from aiogram.enums import ParseMode
-from aiogram.types import BotCommand
+from aiogram.types import (
+    BotCommand,
+    MenuButtonCommands,
+    MenuButtonWebApp,
+    WebAppInfo,
+)
 
-from app.config import BOT_TOKEN
+from app.config import BOT_TOKEN, WEBAPP_URL
 from app.database import db
 from app.handlers import (
     dayplan,
@@ -15,6 +20,7 @@ from app.handlers import (
     fallback,
     manage,
     materials,
+    miniapp,
     notes,
     referral,
     reminders,
@@ -61,9 +67,9 @@ async def main() -> None:
     # qolmasligi uchun.
     # reminders.router oxirida — unda erkin matnni ushlaydigan handler bor.
     dp.include_routers(
-        referral.router, start.router, manage.router, settings.router,
-        dayplan.router, edit.router, tasks.router, notes.router,
-        materials.router, reminders.router,
+        referral.router, start.router, miniapp.router, manage.router,
+        settings.router, dayplan.router, edit.router, tasks.router,
+        notes.router, materials.router, reminders.router,
         # fallback ENG OXIRIDA — hech kim ushlamagan xabarni oladi
         fallback.router,
     )
@@ -82,13 +88,30 @@ async def main() -> None:
     await load_all_reminders(bot)
     await load_all_digests(bot)
 
-    await bot.set_my_commands([
+    commands = [
         BotCommand(command="start", description="Boshlash / bosh menyu"),
         BotCommand(command="new", description="➕ Yangi eslatma"),
         BotCommand(command="list", description="📋 Eslatmalarim"),
+    ]
+    if WEBAPP_URL:
+        commands.append(BotCommand(command="app", description="📱 Mini App"))
+    commands += [
         BotCommand(command="help", description="❓ Yordam"),
         BotCommand(command="cancel", description="❌ Amalni bekor qilish"),
-    ])
+    ]
+    await bot.set_my_commands(commands)
+
+    # Chatdagi "menyu" tugmasi (input yonida): Mini App'ni ochadi. Domen
+    # sozlanmagan bo'lsa — oddiy komandalar menyusi qoladi.
+    try:
+        if WEBAPP_URL:
+            await bot.set_chat_menu_button(menu_button=MenuButtonWebApp(
+                text="📱 Mini App", web_app=WebAppInfo(url=WEBAPP_URL)))
+            logger.info("Mini App menyu tugmasi o'rnatildi: %s", WEBAPP_URL)
+        else:
+            await bot.set_chat_menu_button(menu_button=MenuButtonCommands())
+    except Exception:
+        logger.exception("Menyu tugmasini o'rnatib bo'lmadi")
 
     logger.info("EslatBot ishga tushdi! 🚀")
     await bot.delete_webhook(drop_pending_updates=True)

@@ -11,3 +11,10 @@ TIMEZONE = os.getenv("TIMEZONE", "Asia/Tashkent")
 DB_PATH = BASE_DIR / os.getenv("DB_NAME", "eslatbot.db")
 MOHIR_API_KEY = os.getenv("MOHIR_API_KEY", "")
 GEMINI_API_KEY = os.getenv("GEMINI_API_KEY", "")
+
+# Telegram Mini App manzili. Berilmasa, DOMAIN dan hosil qilinadi:
+# https://<DOMAIN>/app/ . Bo'sh bo'lsa (lokal, domensiz) — Mini App tugmasi
+# ko'rsatilmaydi, bot oddiy ishlayveradi.
+_domain = os.getenv("DOMAIN", "").strip().lstrip(":")
+WEBAPP_URL = os.getenv("WEBAPP_URL", "").strip() or (
+    f"https://{_domain}/app/" if _domain else "")
