@@ -107,7 +107,7 @@ def require_tma(view):
         bot_user = BotUser.objects.filter(tg_id=tg_id).first()
         if bot_user is None:
             # Botni /start qilmagan bo'lsa ham Mini App ishlashi uchun yaratamiz
-            from django.utils import timezone
+            from .logic import now_local
             bot_user = BotUser.objects.create(
                 tg_id=tg_id,
                 name=tg_user.get("first_name") or "",
@@ -116,7 +116,7 @@ def require_tma(view):
                 language_code=tg_user.get("language_code") or "",
                 is_premium=bool(tg_user.get("is_premium")),
                 registered=True,
-                created_at=timezone.localtime().replace(tzinfo=None),
+                created_at=now_local().replace(tzinfo=None),
             )
         request.bot_user = bot_user
         request.tg_user = tg_user
