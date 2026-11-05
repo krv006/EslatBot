@@ -28,6 +28,14 @@ if not SECRET_KEY:
             "DJANGO_SECRET_KEY .env faylida yo'q! Production'da majburiy."
         )
 
+# Mini App initData imzosini tekshirish uchun (bot bilan bir xil token)
+BOT_TOKEN = os.getenv("BOT_TOKEN", "")
+# Mini App manzili — bot menyu tugmasi shu URL'ni ochadi.
+# Berilmasa, DOMAIN dan hosil qilinadi: https://<DOMAIN>/app/
+_domain = os.getenv("DOMAIN", "").strip().lstrip(":")
+WEBAPP_URL = os.getenv("WEBAPP_URL", "").strip() or (
+    f"https://{_domain}/app/" if _domain else "")
+
 ALLOWED_HOSTS = os.getenv("DJANGO_ALLOWED_HOSTS", "*").split(",")
 CSRF_TRUSTED_ORIGINS = [
     o for o in os.getenv("DJANGO_CSRF_TRUSTED_ORIGINS", "").split(",") if o
@@ -52,6 +60,8 @@ INSTALLED_APPS = [
     "jazzmin",
     # panel — o'zining maxsus shablonlari (dashboard: eslat_index.html) uchun
     "panel",
+    # webapp — Telegram Mini App (SPA + JSON API)
+    "webapp",
     "django.contrib.admin",
     "django.contrib.auth",
     "django.contrib.contenttypes",
@@ -98,6 +108,8 @@ DATABASES = {
     "default": {
         "ENGINE": "django.db.backends.sqlite3",
         "NAME": PROJECT_ROOT / os.getenv("DB_NAME", "eslatbot.db"),
+        # Bot bilan bir vaqtda yozish (Mini App) — "database is locked"ni kamaytiradi
+        "OPTIONS": {"timeout": 20},
     }
 }
 

@@ -13,6 +13,8 @@ if not ADMIN_URL.endswith("/"):
 urlpatterns = [
     path("", lambda request: redirect(ADMIN_URL)),
     path(ADMIN_URL, admin.site.urls),
+    # Telegram Mini App (SPA + JSON API)
+    path("app/", include("webapp.urls")),
     # CKEditor 5 (rasm yuklash / muharrir yordamchi endpointlari)
     path("ckeditor5/", include("django_ckeditor_5.urls")),
 ]
