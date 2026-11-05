@@ -89,6 +89,30 @@ certbot --nginx -d eslat.thesofmebel.uz
 Tayyor: **https://eslat.thesofmebel.uz/admin/**
 (static fayllarni Django o'zi beradi — whitenoise, alohida sozlash kerak emas)
 
+## 📱 Telegram Mini App
+
+Bot ichidagi to'liq ilova (eslatma/vazifa/qayd/material/sozlama) —
+Django adminka bilan **bir xil domen**da, `/app/` manzilida ishlaydi.
+Alohida server yoki frontend kerak emas; Caddy (yoki tashqi nginx) allaqachon
+hamma so'rovni Django'ga proxy qiladi.
+
+**Sozlash (juda sodda):**
+1. `.env` da `DOMAIN` to'ldirilgan bo'lsa — qo'shimcha hech narsa shart emas.
+   Mini App manzili avtomatik `https://<DOMAIN>/app/` bo'ladi.
+   (Domen boshqa yo'lga proxy qilsa, `.env` da `WEBAPP_URL` ni to'liq yozing.)
+2. Deploy qiling: `docker compose up -d --build` (yoki `make update`).
+   Bot ishga tushganda chatdagi **menyu tugmasini** (input yoni) Mini App'ga
+   avtomatik bog'laydi. Foydalanuvchilar `/app` ni ham ishlatishi mumkin.
+
+**Talablar:**
+- HTTPS majburiy (Telegram talabi) — Caddy/certbot buni ta'minlaydi.
+- initData imzosi `BOT_TOKEN` bilan tekshiriladi — bot va adminka bitta
+  `BOT_TOKEN` dan foydalanishi shart (bitta `.env`, shunday sozlangan).
+
+**Ixtiyoriy (to'g'ridan-to'g'ri `t.me` havolasi uchun):** BotFather → botni
+tanlang → *Bot Settings → Configure Mini App* → domen/URL ni kiriting.
+Menyu tugmasi va `/app` tugmasi buni talab qilmaydi — ular shundayam ishlaydi.
+
 ## Kundalik buyruqlar
 
 ```bash

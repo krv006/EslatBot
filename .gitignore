@@ -7,6 +7,9 @@ __pycache__/
 *.db-wal
 *.db-shm
 
+# Django collectstatic natijasi (deploy'da qayta hosil qilinadi)
+root/staticfiles/
+
 # Django migratsiyalari (umuman e'tiborsiz — bot jadvallarni o'zi yaratadi)
 root/*/migrations/
 **/migrations/
